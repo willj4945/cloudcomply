@@ -1,5 +1,3 @@
-version: "2"
-
 linters:
   enable:
     # Security
@@ -33,6 +31,8 @@ linters-settings:
 
   govet:
     enable-all: true
+    disable:
+      - fieldalignment  # micro-optimization irrelevant for a CLI tool; hurts readability
 
 issues:
   exclude-rules:
