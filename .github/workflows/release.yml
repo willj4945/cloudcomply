@@ -1,0 +1,40 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write      # create GitHub releases
+  id-token: write      # cosign keyless signing via OIDC
+  packages: write      # push to GHCR if needed
+
+jobs:
+  release:
+    name: Release (GoReleaser + Cosign)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # goreleaser needs full history for changelog
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+
+      # Install cosign for keyless binary signing (Sigstore)
+      - uses: sigstore/cosign-installer@v3
+
+      # Install syft for SBOM generation
+      - uses: anchore/sbom-action/download-syft@v0
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

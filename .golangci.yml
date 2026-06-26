@@ -1,0 +1,44 @@
+version: "2"
+
+linters:
+  enable:
+    # Security
+    - gosec        # Go security checker — catches hardcoded creds, weak crypto, path injection, etc.
+    - bodyclose    # HTTP response body leak
+    - noctx        # HTTP requests without context
+
+    # Correctness
+    - govet        # go vet checks
+    - staticcheck  # bugs, performance, simplification
+    - errcheck     # unhandled errors (critical for AWS SDK calls)
+    - exhaustive   # missing switch cases on enums
+
+    # Code quality
+    - gofmt
+    - goimports
+    - misspell
+    - unconvert
+    - unused
+
+linters-settings:
+  gosec:
+    severity: medium
+    confidence: medium
+    excludes:
+      - G104  # suppress "unhandled error" — covered by errcheck instead
+
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+
+  govet:
+    enable-all: true
+
+issues:
+  exclude-rules:
+    # Demo/fake data files don't need the same rigor
+    - path: ".*demo.*"
+      linters:
+        - gosec
+  max-issues-per-linter: 0
+  max-same-issues: 0
