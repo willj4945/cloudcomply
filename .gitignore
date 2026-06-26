@@ -1,0 +1,52 @@
+# ====================== BINARIES ======================
+cloudcomply
+cloudcomply.exe
+cloudcomply-*
+dist/
+
+# ====================== GO BUILD ======================
+*.test
+*.out
+coverage.html
+coverage.out
+/vendor/
+
+# ====================== AWS / CREDENTIALS ======================
+# Never commit credentials, tokens, or account-specific config
+.aws/
+credentials
+*.pem
+*.key
+*.p12
+*.pfx
+aws-config.yaml
+aws-config.json
+
+# ====================== ENVIRONMENT / SECRETS ======================
+.env
+.env.*
+!.env.example
+secrets.yaml
+secrets.json
+config.local.*
+
+# ====================== REPORT OUTPUT ======================
+# Generated compliance reports may contain sensitive org data
+reports/
+output/
+*.report.json
+*.report.html
+*.report.md
+
+# ====================== CLAUDE CODE (LOCAL ONLY) ======================
+# settings.local.json contains machine-specific permissions — not for VCS
+.claude/settings.local.json
+
+# ====================== EDITORS ======================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
