@@ -39,7 +39,7 @@ Views are defined as `type view int` constants. The main `model` struct holds a 
 
 Current views:
 - `viewDashboard` — org summary + compliance score + main menu
-- `viewFindings` — NIST 800-53 findings table with family filter tabs
+- `viewFindings` — NIST 800-53 findings table with control family and DoD SRG Impact Level filter tabs
 
 ### Data model
 
@@ -54,6 +54,7 @@ type Finding struct {
     Severity         Severity      // CRITICAL | HIGH | MEDIUM | LOW
     AccountsAffected int
     RMFStep          string        // "Assess" | "Monitor" | "Implement" | etc.
+    MinImpactLevel   ImpactLevel   // lowest DoD Cloud Computing SRG Impact Level (IL2/IL4/IL5/IL6) requiring this control for a Mission Owner
 }
 ```
 
