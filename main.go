@@ -73,7 +73,7 @@ type Finding struct {
 	Status           FindingStatus
 	Severity         Severity
 	AccountsAffected int
-	RMFStep          string // e.g. "Assess", "Monitor", "Implement"
+	RMFStep          string      // e.g. "Assess", "Monitor", "Implement"
 	MinImpactLevel   ImpactLevel // lowest DoD CC SRG Impact Level at which this control is required for a Mission Owner
 }
 
