@@ -13,6 +13,7 @@ A lightweight, interactive CLI/TUI for assessing AWS Organizations against NIST 
 - **NIST 800-53 compliance scoring** — aggregated findings from AWS Security Hub mapped to control families (AC, AU, CM, IA, SC, SI, and more)
 - **Interactive findings browser** — filter by control family, see pass/fail status, severity, and accounts affected
 - **RMF alignment** — findings tagged to the relevant RMF step (Categorize, Select, Implement, Assess, Authorize, Monitor)
+- **DoD Cloud Computing SRG Impact Level filtering** — filter findings and view a compliance score scoped to the minimum DoD CC SRG Impact Level (IL2/IL4/IL5/IL6) a Mission Owner (MO) is targeting
 - **Threat modeling** — guided wizard to generate STRIDE-based threat models for AWS workloads *(coming soon)*
 - **Best practices report** — custom checks beyond Security Hub standards *(coming soon)*
 - **Export-ready** — Markdown and JSON output suitable for ATO evidence packages *(coming soon)*
@@ -59,6 +60,8 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o cloudcomply-l
 | `↓` / `j` | Move down |
 | `←` / `h` | Previous control family filter |
 | `→` / `l` | Next control family filter |
+| `[` | Previous DoD SRG impact level filter |
+| `]` | Next DoD SRG impact level filter |
 | `Enter` | Select / open |
 | `Esc` / `q` | Back / quit |
 | `Ctrl+C` | Force quit |
@@ -132,6 +135,21 @@ Findings are mapped to NIST SP 800-53 Rev. 5 control families and tagged to the 
 | SC — System and Communications Protection | ✅ |
 | SI — System and Information Integrity | ✅ |
 | Additional families | Planned |
+
+---
+
+## DoD Cloud Computing SRG Impact Levels
+
+Each finding is tagged with the lowest [DoD Cloud Computing Security Requirements Guide (SRG)](https://public.cyber.mil/dccs/) Impact Level at which it's required, so a Mission Owner (MO) can score compliance against the specific IL they're targeting rather than the full control catalog. Levels are cumulative — a control required at IL2 is also in scope at IL4/IL5/IL6.
+
+| Impact Level | Typical Data Sensitivity |
+|--------------|--------------------------|
+| IL2 | Non-controlled unclassified information (public/low-sensitivity) |
+| IL4 | Controlled Unclassified Information (CUI) |
+| IL5 | Higher-sensitivity CUI and National Security Systems |
+| IL6 | Classified information up to SECRET |
+
+The dashboard shows a compliance score scoped to a target Impact Level, and the findings browser lets you filter to only the controls in scope for that level (`[` / `]` to cycle levels).
 
 ---
 
