@@ -34,6 +34,35 @@ const (
 	StatusPassed FindingStatus = "PASSED"
 )
 
+// ImpactLevel is a DoD Cloud Computing SRG Impact Level (IL2/IL4/IL5/IL6).
+// Levels are cumulative: a control required starting at IL2 is also in scope
+// at IL4/IL5/IL6, matching how the SRG's baselines stack in practice.
+type ImpactLevel string
+
+const (
+	IL2 ImpactLevel = "IL2"
+	IL4 ImpactLevel = "IL4"
+	IL5 ImpactLevel = "IL5"
+	IL6 ImpactLevel = "IL6"
+)
+
+var impactLevelOrder = []ImpactLevel{IL2, IL4, IL5, IL6}
+
+func impactLevelIndex(l ImpactLevel) int {
+	for i, il := range impactLevelOrder {
+		if il == l {
+			return i
+		}
+	}
+	return -1
+}
+
+// impactLevelAtOrBelow reports whether a control whose minimum required
+// level is min is also in scope for a Mission Owner targeting target.
+func impactLevelAtOrBelow(min, target ImpactLevel) bool {
+	return impactLevelIndex(min) <= impactLevelIndex(target)
+}
+
 // Finding mirrors the shape of a real Security Hub NIST 800-53 finding.
 // Switching from fake data to live AWS calls later means replacing demoFindings()
 // without touching anything else.
@@ -44,7 +73,8 @@ type Finding struct {
 	Status           FindingStatus
 	Severity         Severity
 	AccountsAffected int
-	RMFStep          string // e.g. "Assess", "Monitor", "Implement"
+	RMFStep          string      // e.g. "Assess", "Monitor", "Implement"
+	MinImpactLevel   ImpactLevel // lowest DoD CC SRG Impact Level at which this control is required for a Mission Owner
 }
 
 // ====================== FAKE DATA ======================
@@ -52,43 +82,43 @@ type Finding struct {
 func demoFindings() []Finding {
 	return []Finding{
 		// AC — Access Control
-		{"AC-2", "Account Management", "AC", StatusFailed, SeverityHigh, 12, "Assess"},
-		{"AC-2(1)", "Auto Temp/Emergency Accounts", "AC", StatusPassed, SeverityLow, 0, "Monitor"},
-		{"AC-3", "Access Enforcement", "AC", StatusPassed, SeverityMedium, 0, "Monitor"},
-		{"AC-6", "Least Privilege", "AC", StatusFailed, SeverityHigh, 23, "Assess"},
-		{"AC-17", "Remote Access", "AC", StatusFailed, SeverityMedium, 8, "Assess"},
+		{"AC-2", "Account Management", "AC", StatusFailed, SeverityHigh, 12, "Assess", IL2},
+		{"AC-2(1)", "Auto Temp/Emergency Accounts", "AC", StatusPassed, SeverityLow, 0, "Monitor", IL4},
+		{"AC-3", "Access Enforcement", "AC", StatusPassed, SeverityMedium, 0, "Monitor", IL2},
+		{"AC-6", "Least Privilege", "AC", StatusFailed, SeverityHigh, 23, "Assess", IL4},
+		{"AC-17", "Remote Access", "AC", StatusFailed, SeverityMedium, 8, "Assess", IL2},
 
 		// AU — Audit and Accountability
-		{"AU-2", "Event Logging", "AU", StatusPassed, SeverityMedium, 0, "Monitor"},
-		{"AU-3", "Content of Audit Records", "AU", StatusFailed, SeverityMedium, 5, "Assess"},
-		{"AU-9", "Protection of Audit Information", "AU", StatusFailed, SeverityHigh, 15, "Assess"},
-		{"AU-12", "Audit Record Generation", "AU", StatusPassed, SeverityLow, 0, "Monitor"},
+		{"AU-2", "Event Logging", "AU", StatusPassed, SeverityMedium, 0, "Monitor", IL2},
+		{"AU-3", "Content of Audit Records", "AU", StatusFailed, SeverityMedium, 5, "Assess", IL2},
+		{"AU-9", "Protection of Audit Information", "AU", StatusFailed, SeverityHigh, 15, "Assess", IL6},
+		{"AU-12", "Audit Record Generation", "AU", StatusPassed, SeverityLow, 0, "Monitor", IL2},
 
 		// CM — Configuration Management
-		{"CM-2", "Baseline Configuration", "CM", StatusFailed, SeverityCritical, 47, "Implement"},
-		{"CM-6", "Configuration Settings", "CM", StatusFailed, SeverityHigh, 31, "Assess"},
-		{"CM-7", "Least Functionality", "CM", StatusPassed, SeverityMedium, 0, "Monitor"},
-		{"CM-8", "System Component Inventory", "CM", StatusFailed, SeverityMedium, 19, "Assess"},
-		{"CM-11", "User-Installed Software", "CM", StatusPassed, SeverityLow, 0, "Monitor"},
+		{"CM-2", "Baseline Configuration", "CM", StatusFailed, SeverityCritical, 47, "Implement", IL2},
+		{"CM-6", "Configuration Settings", "CM", StatusFailed, SeverityHigh, 31, "Assess", IL4},
+		{"CM-7", "Least Functionality", "CM", StatusPassed, SeverityMedium, 0, "Monitor", IL2},
+		{"CM-8", "System Component Inventory", "CM", StatusFailed, SeverityMedium, 19, "Assess", IL2},
+		{"CM-11", "User-Installed Software", "CM", StatusPassed, SeverityLow, 0, "Monitor", IL4},
 
 		// IA — Identification and Authentication
-		{"IA-2", "Identification and Authentication", "IA", StatusFailed, SeverityCritical, 38, "Assess"},
-		{"IA-2(1)", "MFA for Privileged Accounts", "IA", StatusFailed, SeverityCritical, 41, "Implement"},
-		{"IA-5", "Authenticator Management", "IA", StatusFailed, SeverityHigh, 22, "Assess"},
-		{"IA-8", "Identification (Non-Org Users)", "IA", StatusPassed, SeverityMedium, 0, "Monitor"},
+		{"IA-2", "Identification and Authentication", "IA", StatusFailed, SeverityCritical, 38, "Assess", IL2},
+		{"IA-2(1)", "MFA for Privileged Accounts", "IA", StatusFailed, SeverityCritical, 41, "Implement", IL4},
+		{"IA-5", "Authenticator Management", "IA", StatusFailed, SeverityHigh, 22, "Assess", IL2},
+		{"IA-8", "Identification (Non-Org Users)", "IA", StatusPassed, SeverityMedium, 0, "Monitor", IL2},
 
 		// SC — System and Communications Protection
-		{"SC-7", "Boundary Protection", "SC", StatusFailed, SeverityHigh, 14, "Assess"},
-		{"SC-8", "Transmission Confidentiality", "SC", StatusPassed, SeverityMedium, 0, "Monitor"},
-		{"SC-12", "Cryptographic Key Establishment", "SC", StatusFailed, SeverityMedium, 9, "Assess"},
-		{"SC-28", "Protection of Info at Rest", "SC", StatusFailed, SeverityHigh, 27, "Assess"},
-		{"SC-28(1)", "Cryptographic Protection", "SC", StatusPassed, SeverityMedium, 0, "Monitor"},
+		{"SC-7", "Boundary Protection", "SC", StatusFailed, SeverityHigh, 14, "Assess", IL2},
+		{"SC-8", "Transmission Confidentiality", "SC", StatusPassed, SeverityMedium, 0, "Monitor", IL4},
+		{"SC-12", "Cryptographic Key Establishment", "SC", StatusFailed, SeverityMedium, 9, "Assess", IL5},
+		{"SC-28", "Protection of Info at Rest", "SC", StatusFailed, SeverityHigh, 27, "Assess", IL4},
+		{"SC-28(1)", "Cryptographic Protection", "SC", StatusPassed, SeverityMedium, 0, "Monitor", IL5},
 
 		// SI — System and Information Integrity
-		{"SI-2", "Flaw Remediation", "SI", StatusFailed, SeverityHigh, 33, "Assess"},
-		{"SI-3", "Malicious Code Protection", "SI", StatusPassed, SeverityMedium, 0, "Monitor"},
-		{"SI-4", "System Monitoring", "SI", StatusFailed, SeverityMedium, 7, "Monitor"},
-		{"SI-7", "Software and Firmware Integrity", "SI", StatusPassed, SeverityLow, 0, "Monitor"},
+		{"SI-2", "Flaw Remediation", "SI", StatusFailed, SeverityHigh, 33, "Assess", IL2},
+		{"SI-3", "Malicious Code Protection", "SI", StatusPassed, SeverityMedium, 0, "Monitor", IL2},
+		{"SI-4", "System Monitoring", "SI", StatusFailed, SeverityMedium, 7, "Monitor", IL4},
+		{"SI-7", "Software and Firmware Integrity", "SI", StatusPassed, SeverityLow, 0, "Monitor", IL4},
 	}
 }
 
@@ -103,6 +133,18 @@ func complianceScore(findings []Finding) int {
 		}
 	}
 	return (passed * 100) / len(findings)
+}
+
+// complianceScoreForImpactLevel scores only the findings in scope for a
+// Mission Owner targeting the given DoD CC SRG Impact Level.
+func complianceScoreForImpactLevel(findings []Finding, target ImpactLevel) int {
+	var inScope []Finding
+	for _, f := range findings {
+		if impactLevelAtOrBelow(f.MinImpactLevel, target) {
+			inScope = append(inScope, f)
+		}
+	}
+	return complianceScore(inScope)
 }
 
 // ====================== STYLES ======================
@@ -141,19 +183,23 @@ var (
 
 // ====================== TABLE ======================
 
-func buildTable(findings []Finding, filter string) table.Model {
+func buildTable(findings []Finding, familyFilter, impactFilter string) table.Model {
 	columns := []table.Column{
 		{Title: "Control", Width: 10},
-		{Title: "Title", Width: 34},
+		{Title: "Title", Width: 30},
 		{Title: "Status", Width: 8},
 		{Title: "Severity", Width: 10},
 		{Title: "Accts", Width: 6},
 		{Title: "RMF Step", Width: 10},
+		{Title: "Min IL", Width: 7},
 	}
 
 	var rows []table.Row
 	for _, f := range findings {
-		if filter != "ALL" && f.Family != filter {
+		if familyFilter != "ALL" && f.Family != familyFilter {
+			continue
+		}
+		if impactFilter != "ALL" && !impactLevelAtOrBelow(f.MinImpactLevel, ImpactLevel(impactFilter)) {
 			continue
 		}
 		rows = append(rows, table.Row{
@@ -163,6 +209,7 @@ func buildTable(findings []Finding, filter string) table.Model {
 			string(f.Severity),
 			fmt.Sprintf("%d", f.AccountsAffected),
 			f.RMFStep,
+			string(f.MinImpactLevel),
 		})
 	}
 
@@ -210,11 +257,15 @@ type model struct {
 	families      []string
 	familyIdx     int
 	familyFilter  string
+	impactLevels  []string
+	impactIdx     int
+	impactFilter  string
 }
 
 func initialModel() model {
 	findings := demoFindings()
 	families := []string{"ALL", "AC", "AU", "CM", "IA", "SC", "SI"}
+	impactLevels := []string{"ALL", string(IL2), string(IL4), string(IL5), string(IL6)}
 
 	return model{
 		currentView:     viewDashboard,
@@ -230,10 +281,13 @@ func initialModel() model {
 			"Quit",
 		},
 		findings:      findings,
-		findingsTable: buildTable(findings, "ALL"),
+		findingsTable: buildTable(findings, "ALL", "ALL"),
 		families:      families,
 		familyIdx:     0,
 		familyFilter:  "ALL",
+		impactLevels:  impactLevels,
+		impactIdx:     0,
+		impactFilter:  "ALL",
 	}
 }
 
@@ -303,14 +357,28 @@ func (m model) updateFindings(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.familyIdx > 0 {
 				m.familyIdx--
 				m.familyFilter = m.families[m.familyIdx]
-				m.findingsTable = buildTable(m.findings, m.familyFilter)
+				m.findingsTable = buildTable(m.findings, m.familyFilter, m.impactFilter)
 			}
 			return m, nil
 		case "right", "l":
 			if m.familyIdx < len(m.families)-1 {
 				m.familyIdx++
 				m.familyFilter = m.families[m.familyIdx]
-				m.findingsTable = buildTable(m.findings, m.familyFilter)
+				m.findingsTable = buildTable(m.findings, m.familyFilter, m.impactFilter)
+			}
+			return m, nil
+		case "[":
+			if m.impactIdx > 0 {
+				m.impactIdx--
+				m.impactFilter = m.impactLevels[m.impactIdx]
+				m.findingsTable = buildTable(m.findings, m.familyFilter, m.impactFilter)
+			}
+			return m, nil
+		case "]":
+			if m.impactIdx < len(m.impactLevels)-1 {
+				m.impactIdx++
+				m.impactFilter = m.impactLevels[m.impactIdx]
+				m.findingsTable = buildTable(m.findings, m.familyFilter, m.impactFilter)
 			}
 			return m, nil
 		}
@@ -349,9 +417,22 @@ func (m model) dashboardView() string {
 	scoreStr := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(scoreColor)).
 		Render(fmt.Sprintf("%d%% compliant", m.complianceScore))
 
+	il5Score := complianceScoreForImpactLevel(m.findings, IL5)
+	il5Color := "42" // green
+	if il5Score < 70 {
+		il5Color = "196" // red
+	} else if il5Score < 85 {
+		il5Color = "214" // orange
+	}
+	il5Str := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(il5Color)).
+		Render(fmt.Sprintf("%d%% ready", il5Score))
+
 	summary := fmt.Sprintf(
-		"Organization:    %s\nAccounts in Org: %d\nNIST 800-53:     %s",
-		m.orgName, m.accountCount, scoreStr,
+		"%-29s%s\n%-29s%d\n%-29s%s\n%-29s%s",
+		"Organization:", m.orgName,
+		"Accounts in Org:", m.accountCount,
+		"NIST 800-53:", scoreStr,
+		"DoD SRG (IL5 Mission Owner):", il5Str,
 	)
 	summaryBox := boxStyle.Render(summary)
 
@@ -387,10 +468,23 @@ func (m model) findingsView() string {
 		}
 	}
 
+	// Impact Level filter tabs
+	ilTabs := make([]string, len(m.impactLevels))
+	for i, l := range m.impactLevels {
+		if i == m.impactIdx {
+			ilTabs[i] = selectedMenuStyle.Render(fmt.Sprintf("[%s]", l))
+		} else {
+			ilTabs[i] = menuStyle.Render(fmt.Sprintf(" %s ", l))
+		}
+	}
+
 	// Pass/fail counts for current filter
 	passed, failed := 0, 0
 	for _, f := range m.findings {
 		if m.familyFilter != "ALL" && f.Family != m.familyFilter {
+			continue
+		}
+		if m.impactFilter != "ALL" && !impactLevelAtOrBelow(f.MinImpactLevel, ImpactLevel(m.impactFilter)) {
 			continue
 		}
 		if f.Status == StatusPassed {
@@ -400,17 +494,19 @@ func (m model) findingsView() string {
 		}
 	}
 
-	tabBar := "Family:  " + strings.Join(tabs, "")
+	tabBar := "Family:       " + strings.Join(tabs, "")
+	ilTabBar := "Impact Level: " + strings.Join(ilTabs, "")
 	stats := fmt.Sprintf("  %s   %s",
 		passStyle.Render(fmt.Sprintf("✓ %d passed", passed)),
 		failStyle.Render(fmt.Sprintf("✗ %d failed", failed)),
 	)
 
-	help := helpStyle.Render("↑/k ↓/j: scroll • ←/→ h/l: filter family • esc/q: back")
+	help := helpStyle.Render("↑/k ↓/j: scroll • ←/→ h/l: filter family • [/]: filter impact level • esc/q: back")
 
-	return fmt.Sprintf("%s\n\n%s\n%s\n\n%s\n%s",
+	return fmt.Sprintf("%s\n\n%s\n%s\n%s\n\n%s\n%s",
 		header,
 		tabBar,
+		ilTabBar,
 		stats,
 		tableBoxStyle.Render(m.findingsTable.View()),
 		help,
