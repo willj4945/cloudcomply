@@ -150,6 +150,10 @@ Organization (or use an org member account without org-level permissions).
       return non-empty, schema-correct output
 - [ ] `cloudcomply report nist --format json | jq '[.[] | select(.status=="FAILED")]'`
       round-trips cleanly
+- [ ] Spot-check that a Security Hub control listing several NIST 800-53
+      requirements (most do) shows up under **each** of those controls, and
+      that any `ERROR` / `N/A` counts in the findings browser correspond to
+      `NOT_AVAILABLE` findings in the Security Hub console
 - [ ] Spot-check one control's `AccountsAffected` count against the Security
       Hub console for the same control ID — confirms the aggregation logic
       in `findings.go` isn't over/under-counting

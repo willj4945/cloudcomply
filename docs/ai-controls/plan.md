@@ -84,10 +84,19 @@ against `main` and are byte-identical. Deviations from the bullets below:
 - The crosswalk stores the SRG mapping as one `MinImpactLevel` (cumulative, matching the existing
   model) rather than a list of ILs.
 - No `--impact-level` flag yet — per D1 it ships in Phase 2 with the first check that uses it.
-- **Security Hub behavior deliberately preserved, flagged for a follow-up decision:** a finding
-  listing several NIST requirements still counts only toward the first, and Security Hub
-  `NOT_AVAILABLE` findings are still dropped rather than reported as `ERROR`. The new model
-  supports both changes; making them shifts live scores, so they should be made on purpose.
+- **Security Hub behavior** was deliberately preserved in 1a, then changed in a follow-up
+  (decided 2026-11-16) once the new model made it possible:
+  - A finding now counts toward **every** NIST control it lists, not just the first — matching
+    how Security Hub's own NIST standard attributes it. Previously-hidden failures surface.
+  - `NOT_AVAILABLE` findings are classified by `Compliance.StatusReasons` reason code per the
+    Security Hub CSPM User Guide table: Config access denied, rule evaluation errors, rule not yet
+    created, internal errors and throttling → `ERROR`; `CONFIG_RETURNS_NOT_APPLICABLE` →
+    `NOT_APPLICABLE`; no reason or an unrecognized code → still dropped. A blanket
+    `NOT_AVAILABLE → ERROR` was rejected: one out-of-scope resource would flip a well-covered
+    control from PASSED to ERROR.
+  - **Still open:** Security Hub `WARNING` maps to `FAILED`. Per the same AWS table every
+    `WARNING` reason is a cross-account / cross-Region "can't check from here" case, which
+    arguably belongs under `ERROR` instead. Not changed; needs an owner decision.
 
 Original scope:
 

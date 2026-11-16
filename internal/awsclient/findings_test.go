@@ -21,31 +21,84 @@ func finding(account, title string, relatedReqs []string, status types.Complianc
 	}
 }
 
-func TestParseNISTControlID(t *testing.T) {
+func TestParseNISTControlIDs(t *testing.T) {
 	tests := []struct {
-		name   string
-		reqs   []string
-		wantID string
-		wantOK bool
+		name string
+		reqs []string
+		want []string
 	}{
-		{"matches", []string{"NIST.800-53.r5 AC-4", "PCI.DSS.321 1.2"}, "AC-4", true},
-		{"first NIST requirement wins", []string{"NIST.800-53.r5 AC-4", "NIST.800-53.r5 SC-7"}, "AC-4", true},
-		{"no match", []string{"PCI.DSS.321 1.2"}, "", false},
-		{"no family prefix", []string{"NIST.800-53.r5 bogus"}, "bogus", false},
-		{"nil requirements", nil, "", false},
+		{"single", []string{"NIST.800-53.r5 AC-4", "PCI.DSS.321 1.2"}, []string{"AC-4"}},
+		{"every NIST requirement, in order", []string{"NIST.800-53.r5 AC-4", "PCI.DSS.321 1.2", "NIST.800-53.r5 SC-7"}, []string{"AC-4", "SC-7"}},
+		{"duplicates collapsed", []string{"NIST.800-53.r5 AC-4", "NIST.800-53.r5 AC-4"}, []string{"AC-4"}},
+		{"malformed skipped, valid kept", []string{"NIST.800-53.r5 bogus", "NIST.800-53.r5 AU-12"}, []string{"AU-12"}},
+		{"no match", []string{"PCI.DSS.321 1.2"}, nil},
+		{"nil requirements", nil, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &types.Compliance{RelatedRequirements: tt.reqs}
-			id, ok := parseNISTControlID(c)
-			if id != tt.wantID || ok != tt.wantOK {
-				t.Errorf("parseNISTControlID(%v) = %q, %v; want %q, %v",
-					tt.reqs, id, ok, tt.wantID, tt.wantOK)
+			got := parseNISTControlIDs(&types.Compliance{RelatedRequirements: tt.reqs})
+			if len(got) != len(tt.want) {
+				t.Fatalf("parseNISTControlIDs(%v) = %v, want %v", tt.reqs, got, tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("parseNISTControlIDs(%v) = %v, want %v", tt.reqs, got, tt.want)
+				}
 			}
 		})
 	}
-	if _, ok := parseNISTControlID(nil); ok {
-		t.Error("parseNISTControlID(nil) should return ok=false")
+	if got := parseNISTControlIDs(nil); got != nil {
+		t.Errorf("parseNISTControlIDs(nil) = %v, want nil", got)
+	}
+}
+
+func notAvailable(account string, controls []string, reasonCodes ...string) types.AwsSecurityFinding {
+	f := finding(account, "Unevaluated", controls, types.ComplianceStatusNotAvailable, types.SeverityLabelMedium)
+	for _, code := range reasonCodes {
+		f.Compliance.StatusReasons = append(f.Compliance.StatusReasons, types.StatusReason{ReasonCode: aws.String(code)})
+	}
+	return f
+}
+
+func TestMapStatus_NotAvailableByReasonCode(t *testing.T) {
+	tests := []struct {
+		name   string
+		codes  []string
+		want   nist.FindingStatus
+		wantOK bool
+	}{
+		{"config access denied", []string{"CONFIG_ACCESS_DENIED"}, nist.StatusError, true},
+		{"rule evaluation error", []string{"CONFIG_RULE_EVALUATION_ERROR"}, nist.StatusError, true},
+		{"rule still being created", []string{"CONFIG_RULE_NOT_FOUND"}, nist.StatusError, true},
+		{"internal service error", []string{"INTERNAL_SERVICE_ERROR"}, nist.StatusError, true},
+		{"throttling", []string{"THROTTLING_ERROR"}, nist.StatusError, true},
+		{"config says not applicable", []string{"CONFIG_RETURNS_NOT_APPLICABLE"}, nist.StatusNotApplicable, true},
+		{"error outranks not applicable", []string{"CONFIG_RETURNS_NOT_APPLICABLE", "THROTTLING_ERROR"}, nist.StatusError, true},
+		{"unrecognized code skipped", []string{"SOMETHING_NEW"}, "", false},
+		{"no reason skipped", nil, "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := mapStatus(notAvailable("1", []string{"NIST.800-53.r5 AC-6"}, tt.codes...).Compliance)
+			if got != tt.want || ok != tt.wantOK {
+				t.Errorf("mapStatus(NOT_AVAILABLE %v) = %q, %v; want %q, %v", tt.codes, got, ok, tt.want, tt.wantOK)
+			}
+		})
+	}
+}
+
+func TestToCheckResult_DetailCarriesReason(t *testing.T) {
+	f := notAvailable("1", []string{"NIST.800-53.r5 AC-6"})
+	f.Compliance.StatusReasons = []types.StatusReason{{
+		ReasonCode:  aws.String("CONFIG_RULE_EVALUATION_ERROR"),
+		Description: aws.String("missing permission s3:GetBucketPolicy"),
+	}}
+	r, ok := toCheckResult(f)
+	if !ok || r.Status != nist.StatusError {
+		t.Fatalf("toCheckResult = %+v, %v; want ERROR", r, ok)
+	}
+	if want := "CONFIG_RULE_EVALUATION_ERROR: missing permission s3:GetBucketPolicy"; r.Detail != want {
+		t.Errorf("Detail = %q, want %q", r.Detail, want)
 	}
 }
 
@@ -81,6 +134,9 @@ func TestToCheckResult(t *testing.T) {
 	}
 	if len(r.Controls) != 1 || r.Controls[0] != "AU-12" {
 		t.Errorf("Controls = %v, want [AU-12]", r.Controls)
+	}
+	if r.Detail != "" {
+		t.Errorf("Detail = %q, want empty (no status reasons)", r.Detail)
 	}
 }
 
@@ -137,7 +193,7 @@ func TestToCheckResult_SkipsUnscorableAndNonNIST(t *testing.T) {
 	got := rollUp(
 		// Not a NIST 800-53 finding at all.
 		finding("111111111111", "Other", []string{"PCI.DSS.321 1.2"}, types.ComplianceStatusFailed, types.SeverityLabelHigh),
-		// NIST finding but NOT_AVAILABLE — can't be scored.
+		// NOT_AVAILABLE with no reason code — can't be classified, so skipped.
 		finding("111111111111", "Other", []string{"NIST.800-53.r5 SC-7"}, types.ComplianceStatusNotAvailable, types.SeverityLabelHigh),
 	)
 	if len(got) != 0 {
@@ -159,5 +215,54 @@ func TestRollUp_SortedByControlID(t *testing.T) {
 		if got[i].ControlID != id {
 			t.Errorf("got[%d].ControlID = %q, want %q", i, got[i].ControlID, id)
 		}
+	}
+}
+
+// The worked example from the scoring-change discussion: F's failure used to
+// be credited only to SC-7, hiding that AC-4 fails too.
+func TestRollUp_FindingCountsTowardEveryListedControl(t *testing.T) {
+	got := rollUp(
+		finding("1", "P", []string{"NIST.800-53.r5 AC-3", "NIST.800-53.r5 AC-6"}, types.ComplianceStatusPassed, types.SeverityLabelLow),
+		finding("1", "F", []string{"NIST.800-53.r5 SC-7", "NIST.800-53.r5 AC-4"}, types.ComplianceStatusFailed, types.SeverityLabelHigh),
+		finding("1", "Q", []string{"NIST.800-53.r5 AC-4"}, types.ComplianceStatusPassed, types.SeverityLabelLow),
+	)
+	want := map[string]nist.FindingStatus{
+		"AC-3": nist.StatusPassed,
+		"AC-4": nist.StatusFailed,
+		"AC-6": nist.StatusPassed,
+		"SC-7": nist.StatusFailed,
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %d controls, want %d: %+v", len(got), len(want), got)
+	}
+	for _, f := range got {
+		if f.Status != want[f.ControlID] {
+			t.Errorf("%s = %v, want %v", f.ControlID, f.Status, want[f.ControlID])
+		}
+	}
+	if score := nist.ComplianceScore(got); score != 50 {
+		t.Errorf("score = %d, want 50", score)
+	}
+}
+
+// A not-applicable NOT_AVAILABLE must not knock a well-covered control off
+// PASSED; a genuine evaluation failure must stop it claiming a pass.
+func TestRollUp_NotAvailableClassification(t *testing.T) {
+	passes := make([]types.AwsSecurityFinding, 40)
+	for i := range passes {
+		passes[i] = finding("1", "Least Privilege", []string{"NIST.800-53.r5 AC-6"}, types.ComplianceStatusPassed, types.SeverityLabelLow)
+	}
+
+	got := rollUp(append(passes, notAvailable("1", []string{"NIST.800-53.r5 AC-6"}, "CONFIG_RETURNS_NOT_APPLICABLE"))...)
+	if got[0].Status != nist.StatusPassed {
+		t.Errorf("with not-applicable reason: AC-6 = %v, want PASSED", got[0].Status)
+	}
+
+	got = rollUp(append(passes, notAvailable("1", []string{"NIST.800-53.r5 AC-6"}, "CONFIG_ACCESS_DENIED"))...)
+	if got[0].Status != nist.StatusError {
+		t.Errorf("with access-denied reason: AC-6 = %v, want ERROR", got[0].Status)
+	}
+	if got[0].AccountsAffected != 0 {
+		t.Errorf("AccountsAffected = %d, want 0 (an error isn't a failure)", got[0].AccountsAffected)
 	}
 }
