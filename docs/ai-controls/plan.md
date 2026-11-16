@@ -8,6 +8,11 @@ NIST AI RMF 1.0, and the OWASP LLM Top 10.
 > the plan where it conflicts with reality, then proceed phase by phase. Do not let it
 > implement all three controls in one pass.
 
+> **Status:** Phase 0 complete — see [phase0-recon.md](phase0-recon.md). Its findings have been
+> applied below. Phase 1 is **required** (not conditional) and is split into 1a/1b. Items that
+> need an owner decision are collected under [Open decisions](#open-decisions) and block the
+> phases noted there. Next up: Phase 1a.
+
 ---
 
 ## Goal
@@ -24,7 +29,14 @@ frameworks, shipped as a coherent increment of the existing tool.
 
 ---
 
-## Phase 0 — Reconnaissance (do this first, write no code)
+## Phase 0 — Reconnaissance ✅ done
+
+Outcome ([full report](phase0-recon.md)): cloudcomply has **no native checks** today — it
+aggregates Security Hub's already-evaluated NIST 800-53 findings. There is no check engine, no
+per-account role assumption, no region iteration, no multi-framework mapping, only
+`PASSED`/`FAILED` statuses, and no AWS mocking. Phase 1 below builds that foundation.
+
+Original brief, kept for reference:
 
 Read the codebase and answer these in a short written report. The answers determine how the
 rest of the plan is implemented.
@@ -52,6 +64,43 @@ refactor is Phase 1 and the controls shift back.
 
 ---
 
+## Phase 1 — Foundation (required)
+
+Split into two reviewable increments. Neither adds an AI check; both must leave existing
+Security Hub behavior and `--demo` output unchanged.
+
+### 1a. Result + mapping model (pure Go, no AWS)
+
+- **Per-check result type**, distinct from today's per-control `nist.Finding` row:
+  `CheckResult{CheckID, Status, Account, Region, Resource, Detail}` with
+  `Status ∈ PASS | FAIL | NOT_APPLICABLE | ERROR`. `ERROR` carries the denied action / API error.
+- **Crosswalk package** (no AWS dependency): `CheckID → {NIST80053 []string, SRG []ImpactLevel,
+  AIRMF []string, OWASPLLM []string, Source}` where `Source` cites the published crosswalk or is
+  explicitly `cloudcomply-interpretation`.
+- **Scoring:** `NOT_APPLICABLE` excluded from denominators; `ERROR` reported separately and never
+  counted as a pass; a real per-family rollup function that the TUI uses (replacing the inline
+  recount in `findingsView`).
+- **Security Hub adapter:** existing rows flow through the new model unchanged.
+- **JSON compatibility:** `report nist --format json` stays backward compatible — new fields are
+  additive, the `status` enum only grows. The schema isn't locked yet (CLAUDE.md roadmap item 6),
+  so this is the cheapest time to make the change.
+
+### 1b. Execution layer
+
+- **Account fan-out:** assume a read-only assessor role in each member account (role strategy is an
+  [open decision](#open-decisions)); single-account mode keeps working with no role assumption.
+- **Region discovery:** enumerate enabled regions; a service that doesn't exist in a region yields
+  `NOT_APPLICABLE`, not `ERROR`.
+- **Timeouts and concurrency:** bounded concurrency and per-call timeouts, replacing the single
+  global 30s `fetchTimeout` (currently duplicated in `cmd/fetch.go` and `internal/tui/model.go`).
+- **Partial results:** one denied call in one account/region produces an `ERROR` result for that
+  scope; it no longer aborts the whole run.
+- **Test pattern:** narrow per-collector interfaces (SDK v2 idiom) with fakes, JSON fixtures under
+  `testdata/` unmarshalled into SDK output types, and `AccessDeniedException` via
+  `smithy.GenericAPIError`. Established here, before the first real check.
+
+---
+
 ## Framework mapping model
 
 The differentiating work is the crosswalk. A finding should carry all three.
@@ -69,6 +118,12 @@ published crosswalks (NIST publishes 800-53 ↔ AI RMF mappings; OWASP publishes
 framework alignment) and cite the source in code comments. Where no official mapping exists,
 mark it as cloudcomply's own interpretation — being explicit about that is a credibility
 feature, not a weakness.
+
+**Impact-level-dependent pass conditions.** The current model only records the *lowest* IL at
+which a control applies (`MinImpactLevel`). Some checks below (AI-AU-12-03, AI-AU-12-04) have a
+*different pass condition* at different ILs. Phase 1a must support this — either by evaluating
+against a target IL, or by emitting one result per IL threshold. Which approach is an
+[open decision](#open-decisions).
 
 ---
 
@@ -91,11 +146,15 @@ is the detection prerequisite for most LLM incident response.
 
 ### Notes
 - Logging config is **account-level and per-region**. Must iterate enabled regions.
-- An account with no Bedrock usage should report `not_applicable`, not `fail`. Detect via
-  `bedrock:ListFoundationModels` access plus absence of invocation activity, or make it a
-  configurable scope flag.
+- An account with no Bedrock usage should report `not_applicable`, not `fail`. There is no
+  cheap API for "absence of invocation activity"; the detection method is an
+  [open decision](#open-decisions).
+- AI-AU-12-03 and AI-AU-12-04 depend on the IL-conditional pass model (see
+  [Framework mapping model](#framework-mapping-model)). AI-AU-12-04 also needs a cited source for
+  per-IL retention minimums — none exists in the repo yet. If either blocks, ship 01/02 first.
 - Required IAM: `bedrock:GetModelInvocationLoggingConfiguration`, `s3:GetBucketEncryption`,
-  `s3:GetBucketLifecycleConfiguration`, `logs:DescribeLogGroups`.
+  `s3:GetBucketLifecycleConfiguration`, `logs:DescribeLogGroups` (+
+  `cloudwatch:GetMetricStatistics` if the metric-based N/A detection is chosen).
 
 ### Mapping
 - **800-53:** AU-12, AU-2, AU-9 (log protection), AU-11 (retention)
@@ -127,6 +186,11 @@ are most likely to be genuinely alarming in a real environment.
   matters for credibility with reviewers who know SageMaker.
 - AI-SC-7-06 is a weak signal (guardrail existence ≠ guardrail attached to the right model).
   Mark advisory. A follow-on check could verify guardrail association per invocation path.
+- **Overlap with Security Hub.** Security Hub already ships NIST-mapped SageMaker controls that
+  flow into cloudcomply today — notably notebook direct internet access, which duplicates
+  AI-SC-7-05, plus SageMaker VPC / root-access controls. Before building this phase, pull the
+  current Security Hub control list for SageMaker and Bedrock, and for each overlap either skip the
+  native check or reuse the Security Hub result, so one issue isn't counted twice.
 
 ### Mapping
 - **800-53:** SC-7, SC-7(3) access points, AC-4 information flow, SC-8 transmission confidentiality
@@ -176,15 +240,21 @@ lifecycle, which is mostly organizational process and not machine-checkable.
 Each phase ends with a working, committed increment. Do not start the next until the previous
 passes tests and produces correct output against a real account.
 
-| Phase | Deliverable | Rough size |
-|---|---|---|
-| 0 | Reconnaissance report | 1 session |
-| 1 | Framework mapping model refactor *(only if Phase 0 says it's needed)* | 1–2 sessions |
-| 2 | AU-12 checks + collector pattern + tests | 1 weekend |
-| 3 | TUI rendering for the new control family | 1 session |
-| 4 | SC-7 checks + tests | 1 weekend |
-| 5 | AC-6 checks (defer AI-AC-6-06 if it bogs down) + tests | 2 weekends |
-| 6 | README, sample report, documented IAM policy for the assessor role | 1 session |
+| Phase | Deliverable | Rough size | Blocked on |
+|---|---|---|---|
+| 0 | Reconnaissance report | 1 session | ✅ done |
+| 1a | Result + mapping model (statuses, crosswalk, scoring, SH adapter) | 1–2 sessions | IL-conditional model decision |
+| 1b | Execution layer (account/region fan-out, timeouts, partial results, test pattern) | ~1 weekend | Assessor role decision |
+| 2 | AU-12 checks (first native check) + tests | 1 session for 01/02; 03/04 after their decisions | Bedrock N/A detection; retention source |
+| 3 | TUI rendering for AI workload results + finding detail pane | 1–2 sessions | TUI placement decision |
+| 4 | SC-7 checks + tests (after Security Hub overlap review) | 1 weekend | — |
+| 5 | AC-6 checks (defer AI-AC-6-06 if it bogs down) + tests | 2 weekends | — |
+| 6 | README, sample report, documented IAM policy for the assessor role | 1 session | — |
+
+Phase 3 now includes the **finding detail pane** (CLAUDE.md roadmap item 2): the findings table is
+already ~81 columns wide, so the AI RMF / OWASP mappings can only be shown there. Phase 3 is not a
+new *family* — AU, SC and AC already exist as families and Security Hub already emits rows for
+them.
 
 ---
 
@@ -201,12 +271,30 @@ anything is worse than no tool.
 **Not-applicable is a first-class result.** Most accounts run no AI workloads. Those should
 report `not_applicable` and be excluded from scoring denominators, not scored as failures.
 
-**Region iteration.** Bedrock and SageMaker are regional and availability varies by region.
-Handle regions where the service does not exist without erroring.
+**Region and account iteration.** Bedrock and SageMaker are regional and availability varies by
+region. Handle regions where the service does not exist without erroring. These APIs are also
+per-account and are *not* aggregated by Security Hub, so without the Phase 1b fan-out the checks
+would only see the account and region the tool runs in. Neither iteration exists today.
 
 **Testing.** Mock AWS responses using recorded fixtures from a real account with identifiers
 scrubbed. Each check needs a pass case, a fail case, a not-applicable case, and an
 access-denied case.
+
+---
+
+## Open decisions
+
+Owner decisions surfaced by Phase 0. Options are listed with the recon's recommendation where it
+made one; nothing here is decided yet. Record the choice inline when made.
+
+| # | Decision | Options | Recon recommendation | Blocks |
+|---|---|---|---|---|
+| D1 | **IL-conditional pass criteria** | (a) evaluate against a target IL chosen at run time; (b) emit one result per IL threshold | — | 1a, AI-AU-12-03/04 |
+| D2 | **Assessor role** in member accounts | (a) dedicated read-only role deployed via StackSets; (b) reuse `OrganizationAccountAccessRole` | (a) — (b) is admin-equivalent and undercuts the least-privilege credibility goal | 1b |
+| D3 | **Region scope** | (a) discover enabled regions (`account:ListRegions` / `ec2:DescribeRegions`); (b) `--regions` flag; (c) both, flag overrides | — | 1b |
+| D4 | **Bedrock not-applicable detection** | (a) CloudWatch `AWS/Bedrock` `Invocations` metric per region (needs `cloudwatch:GetMetricStatistics`); (b) explicit scope flag | (a), with (b) as override | AI-AU-12-01/02 |
+| D5 | **Retention minimum source** for AI-AU-12-04 | Name the authority (e.g. DoD SRG, OMB M-21-31) | — | AI-AU-12-04 |
+| D6 | **TUI placement** of AI workload results | (a) merge into existing per-control rows; (b) new "source" filter tab (`ALL / Security Hub / AI Workloads`); (c) new view | (b) — keeps AI findings visible, matches existing filter UX | 3 |
 
 ---
 

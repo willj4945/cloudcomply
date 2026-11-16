@@ -4,6 +4,9 @@ Codebase read at `main` @ `f85f1ea` (after PRs #13/#14). ~1,250 lines of Go acro
 `cmd/`, `internal/{awsclient,nist,report,tui}`. `go test ./...` passes. No code was
 written for this report.
 
+> This is a point-in-time snapshot. The living plan is [plan.md](plan.md); the open
+> questions at the end of this report are tracked there as decisions D1–D6.
+
 ## TL;DR
 
 **cloudcomply has no checks today.** It is a Security Hub *aggregator*: it pulls

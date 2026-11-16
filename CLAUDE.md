@@ -111,6 +111,10 @@ go mod tidy
 8. **S3 result storage + drift detection** — one JSON object per run (`runs/{org-id}/{yyyy-mm-dd}/{unix-ts}.json`, plus a `latest.json` pointer per org); new `internal/drift` package with a pure `Compare(prev, curr []nist.Finding) []DriftEvent` function, no AWS SDK dependency, unit-testable like `buildTable()`
 9. **Continuous control monitoring dashboard** — direction not yet decided (AWS-native QuickSight/Athena or CloudWatch metrics vs. a bespoke web app vs. a history/drift view added to the existing TUI). The bespoke-web-app option is the one path here that conflicts with the "no persistent install" constraint above — revisit once item 8 produces real drift data to look at
 
+### AI workload controls (separate track)
+
+Plan for native AU-12 / SC-7 / AC-6 checks on Bedrock and SageMaker, mapped to NIST 800-53, DoD SRG, NIST AI RMF and OWASP LLM Top 10: [docs/ai-controls/plan.md](docs/ai-controls/plan.md). Read it — and its Phase 0 recon report — before starting that work. Work it phase by phase; check its **Open decisions** table before starting a blocked phase, and record decisions and phase completion in the plan as they happen.
+
 ## IAM Requirements (for live mode)
 
 Run from a role in the Security Hub delegated admin account:
