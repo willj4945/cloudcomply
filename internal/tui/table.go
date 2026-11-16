@@ -9,6 +9,31 @@ import (
 	"cloudcomply/internal/nist"
 )
 
+// filterFindings is shared by buildTable and the findings view's tally so
+// the table and its pass/fail counts can never disagree.
+func filterFindings(findings []nist.Finding, familyFilter, impactFilter string) []nist.Finding {
+	var out []nist.Finding
+	for _, f := range findings {
+		if familyFilter != "ALL" && f.Family != familyFilter {
+			continue
+		}
+		if impactFilter != "ALL" && !nist.ImpactLevelAtOrBelow(f.MinImpactLevel, nist.ImpactLevel(impactFilter)) {
+			continue
+		}
+		out = append(out, f)
+	}
+	return out
+}
+
+// statusLabel shortens NOT_APPLICABLE to fit the 8-wide Status column on a
+// Termux-width screen; JSON output keeps the full enum value.
+func statusLabel(s nist.FindingStatus) string {
+	if s == nist.StatusNotApplicable {
+		return "N/A"
+	}
+	return string(s)
+}
+
 func buildTable(findings []nist.Finding, familyFilter, impactFilter string) table.Model {
 	columns := []table.Column{
 		{Title: "Control", Width: 10},
@@ -21,17 +46,11 @@ func buildTable(findings []nist.Finding, familyFilter, impactFilter string) tabl
 	}
 
 	var rows []table.Row
-	for _, f := range findings {
-		if familyFilter != "ALL" && f.Family != familyFilter {
-			continue
-		}
-		if impactFilter != "ALL" && !nist.ImpactLevelAtOrBelow(f.MinImpactLevel, nist.ImpactLevel(impactFilter)) {
-			continue
-		}
+	for _, f := range filterFindings(findings, familyFilter, impactFilter) {
 		rows = append(rows, table.Row{
 			f.ControlID,
 			f.Title,
-			string(f.Status),
+			statusLabel(f.Status),
 			string(f.Severity),
 			fmt.Sprintf("%d", f.AccountsAffected),
 			f.RMFStep,

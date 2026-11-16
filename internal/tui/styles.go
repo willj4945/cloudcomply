@@ -25,8 +25,10 @@ var (
 			Foreground(lipgloss.Color("241")).
 			MarginTop(1)
 
-	passStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-	failStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	passStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+	failStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	errorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+	naStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 
 	tableBoxStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
