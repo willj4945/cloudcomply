@@ -1,4 +1,7 @@
+version: "2"
+
 linters:
+  # "standard" (v2 default) already enables errcheck, govet, ineffassign, staticcheck, unused.
   enable:
     # Security
     - gosec        # Go security checker — catches hardcoded creds, weak crypto, path injection, etc.
@@ -6,39 +9,46 @@ linters:
     - noctx        # HTTP requests without context
 
     # Correctness
-    - govet        # go vet checks
-    - staticcheck  # bugs, performance, simplification
-    - errcheck     # unhandled errors (critical for AWS SDK calls)
     - exhaustive   # missing switch cases on enums
 
     # Code quality
-    - gofmt
-    - goimports
     - misspell
     - unconvert
-    - unused
 
-linters-settings:
-  gosec:
-    severity: medium
-    confidence: medium
-    excludes:
-      - G104  # suppress "unhandled error" — covered by errcheck instead
+  settings:
+    gosec:
+      severity: medium
+      confidence: medium
+      excludes:
+        - G104  # suppress "unhandled error" — covered by errcheck instead
 
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
 
-  govet:
-    enable-all: true
-    disable:
-      - fieldalignment  # micro-optimization irrelevant for a CLI tool; hurts readability
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment  # micro-optimization irrelevant for a CLI tool; hurts readability
+
+  exclusions:
+    # Matches v1's default exclusions so the migration doesn't change what gets reported.
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      # Demo/fake data files don't need the same rigor
+      - path: ".*demo.*"
+        linters:
+          - gosec
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
 
 issues:
-  exclude-rules:
-    # Demo/fake data files don't need the same rigor
-    - path: ".*demo.*"
-      linters:
-        - gosec
   max-issues-per-linter: 0
   max-same-issues: 0
