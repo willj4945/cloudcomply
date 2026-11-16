@@ -28,7 +28,7 @@ A lightweight, interactive CLI/TUI for assessing AWS Organizations against NIST 
 Download the latest static Linux binary from [Releases](../../releases) and run it directly — no Go installation needed:
 
 ```bash
-curl -LO https://github.com/yourname/cloudcomply/releases/latest/download/cloudcomply-linux-amd64
+curl -LO https://github.com/willj4945/cloudcomply/releases/latest/download/cloudcomply-linux-amd64
 chmod +x cloudcomply-linux-amd64
 ./cloudcomply-linux-amd64
 ```
@@ -38,7 +38,7 @@ chmod +x cloudcomply-linux-amd64
 Requires Go 1.21+.
 
 ```bash
-git clone https://github.com/yourname/cloudcomply.git
+git clone https://github.com/willj4945/cloudcomply.git
 cd cloudcomply
 go build -ldflags="-s -w" -o cloudcomply .
 ./cloudcomply
