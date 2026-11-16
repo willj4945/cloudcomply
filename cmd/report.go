@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"context"
-
 	"github.com/spf13/cobra"
 
 	"cloudcomply/internal/report"
@@ -19,9 +17,7 @@ var reportNistCmd = &cobra.Command{
 	Use:   "nist",
 	Short: "Generate a NIST SP 800-53 findings report",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx, cancel := context.WithTimeout(cmd.Context(), fetchTimeout)
-		defer cancel()
-		findings, _, err := newFetcher(demoMode)(ctx)
+		findings, _, err := newFetcher(demoMode)(cmd.Context())
 		if err != nil {
 			return err
 		}

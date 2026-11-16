@@ -10,9 +10,9 @@ import (
 	"cloudcomply/internal/tui"
 )
 
-// fetchTimeout bounds how long headless `report nist` waits on a live AWS
-// call (the TUI has its own copy of this constant in internal/tui, since
-// its async fetch is triggered independently via Bubble Tea's Init()).
+// fetchTimeout bounds the whole live Security Hub + Organizations fetch. It
+// lives here, inside the live fetcher, so the TUI and `report nist` share
+// one bound; demo mode needs none.
 const fetchTimeout = 30 * time.Second
 
 // newFetcher centralizes the demo-vs-live decision so root.go (TUI) and
@@ -24,6 +24,8 @@ func newFetcher(demo bool) tui.FindingsFetcher {
 		}
 	}
 	return func(ctx context.Context) ([]nist.Finding, nist.OrgSummary, error) {
+		ctx, cancel := context.WithTimeout(ctx, fetchTimeout)
+		defer cancel()
 		client, err := awsclient.New(ctx)
 		if err != nil {
 			return nil, nist.OrgSummary{}, fmt.Errorf("connecting to AWS: %w (try --demo)", err)

@@ -17,6 +17,7 @@ import (
 )
 
 type Client struct {
+	cfg aws.Config
 	sh  *securityhub.Client
 	org *organizations.Client
 	sts *sts.Client
@@ -31,6 +32,7 @@ func New(ctx context.Context) (*Client, error) {
 		return nil, fmt.Errorf("loading AWS config: %w", err)
 	}
 	return &Client{
+		cfg: cfg,
 		sh:  securityhub.NewFromConfig(cfg),
 		org: organizations.NewFromConfig(cfg),
 		sts: sts.NewFromConfig(cfg),

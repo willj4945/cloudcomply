@@ -1,0 +1,7 @@
+{
+  "Regions": [
+    {"RegionName": "us-west-2", "RegionOptStatus": "ENABLED_BY_DEFAULT"},
+    {"RegionName": "us-east-1", "RegionOptStatus": "ENABLED_BY_DEFAULT"},
+    {"RegionName": "me-central-1", "RegionOptStatus": "ENABLED"}
+  ]
+}

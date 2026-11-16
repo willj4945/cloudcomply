@@ -1,0 +1,6 @@
+{
+  "Accounts": [
+    {"Id": "444444444444", "Arn": "arn:aws:organizations::111111111111:account/o-example/444444444444", "Name": "ml-workloads", "Email": "ml@example.com", "Status": "ACTIVE", "JoinedMethod": "CREATED", "JoinedTimestamp": "2024-04-01T10:00:00Z"},
+    {"Id": "555555555555", "Arn": "arn:aws:organizations::111111111111:account/o-example/555555555555", "Name": "pending", "Email": "new@example.com", "State": "PENDING_ACTIVATION", "Status": "ACTIVE", "JoinedMethod": "CREATED", "JoinedTimestamp": "2024-05-01T10:00:00Z"}
+  ]
+}

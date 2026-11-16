@@ -95,7 +95,7 @@ The tool requires read-only access. Run from a role in your Security Hub delegat
 }
 ```
 
-For cross-account checks: add `sts:AssumeRole` and a trust policy in member accounts.
+For cross-account checks, deploy the read-only `cloudcomply-assessor` role to member accounts and grant the caller `sts:AssumeRole` on it. The template, StackSet commands and caller policy are in [deploy/README.md](deploy/README.md).
 
 ---
 

@@ -1,0 +1,8 @@
+{
+  "Accounts": [
+    {"Id": "111111111111", "Arn": "arn:aws:organizations::111111111111:account/o-example/111111111111", "Name": "management", "Email": "mgmt@example.com", "State": "ACTIVE", "Status": "ACTIVE", "JoinedMethod": "CREATED", "JoinedTimestamp": "2024-01-15T10:00:00Z"},
+    {"Id": "222222222222", "Arn": "arn:aws:organizations::111111111111:account/o-example/222222222222", "Name": "security-tooling", "Email": "sec@example.com", "State": "ACTIVE", "Status": "ACTIVE", "JoinedMethod": "INVITED", "JoinedTimestamp": "2024-02-01T10:00:00Z"},
+    {"Id": "333333333333", "Arn": "arn:aws:organizations::111111111111:account/o-example/333333333333", "Name": "closed-sandbox", "Email": "old@example.com", "State": "SUSPENDED", "Status": "SUSPENDED", "JoinedMethod": "CREATED", "JoinedTimestamp": "2024-03-01T10:00:00Z"}
+  ],
+  "NextToken": "page2"
+}

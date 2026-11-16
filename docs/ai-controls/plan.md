@@ -8,9 +8,9 @@ NIST AI RMF 1.0, and the OWASP LLM Top 10.
 > the plan where it conflicts with reality, then proceed phase by phase. Do not let it
 > implement all three controls in one pass.
 
-> **Status:** Phase 0 complete — see [phase0-recon.md](phase0-recon.md). Phase 1a implemented
-> (in review). D1–D3 decided; D4–D6 open — see [Open decisions](#open-decisions). Next up:
-> Phase 1b.
+> **Status:** Phase 0 complete — see [phase0-recon.md](phase0-recon.md). Phase 1a merged;
+> Phase 1b implemented (in review). D1–D3 decided; D4–D6 open — see
+> [Open decisions](#open-decisions). Next up: Phase 2 (AU-12), blocked on D4 for checks 01/02.
 
 ---
 
@@ -68,7 +68,7 @@ refactor is Phase 1 and the controls shift back.
 Split into two reviewable increments. Neither adds an AI check; both must leave existing
 Security Hub behavior and `--demo` output unchanged.
 
-### 1a. Result + mapping model (pure Go, no AWS) — implemented
+### 1a. Result + mapping model (pure Go, no AWS) — merged (#16)
 
 As built: `nist.CheckResult` + `nist.RollUp` (`internal/nist/rollup.go`), `nist.Tally` /
 `Summarize` scoring (`score.go`), `internal/crosswalk` (empty table + `Validate`, tested so every
@@ -115,7 +115,46 @@ Original scope:
   additive, the `status` enum only grows. The schema isn't locked yet (CLAUDE.md roadmap item 6),
   so this is the cheapest time to make the change.
 
-### 1b. Execution layer
+### 1b. Execution layer — implemented
+
+As built (`internal/awsclient/scan.go`, `errors.go`; `deploy/`):
+
+- `Client.Scan(ctx, collectors, ScanOptions)` lists ACTIVE accounts (single-account mode when not
+  in an org), assumes `arn:<caller's partition>:iam::<acct>:role/<RoleName>` in every account but
+  the caller's own, discovers enabled regions with `account:ListRegions` (or uses
+  `ScanOptions.Regions`), then runs every `Collector` against every account × region with bounded
+  concurrency (default 8) and a per-call timeout (default 60s).
+- Per-account failures (role not assumable, region discovery denied) become `ERROR` results for
+  every check in that account, naming the role ARN or pointing at `--regions`; the rest of the
+  scan continues. Only global failures (no caller identity, `ListAccounts` failing, a check with no
+  crosswalk entry) return an error.
+- `Collector` is `CheckIDs()` + `Collect(ctx, Target) []CheckResult`. Collectors turn a failed AWS
+  call into results with `ResultsForError`, which uses `ClassifyError`: access denied → `ERROR`
+  naming `Service:Operation`; no DNS record for the regional endpoint → `NOT_APPLICABLE`; anything
+  else → `ERROR`. Results get controls and IL from the crosswalk.
+- Test pattern: `scanDeps` function fakes for the fan-out, scrubbed JSON fixtures under
+  `internal/awsclient/testdata/` decoded into SDK output types, `apiError(...)` building
+  `smithy.OperationError{GenericAPIError}`. Tests run under `-race`.
+- `deploy/cloudformation/assessor-role.yaml` (cfn-lint clean) + `deploy/README.md`: StackSet and
+  management-account deployment, caller policy, verification.
+- The duplicated 30s `fetchTimeout` is now one constant owned by the live fetcher in
+  `cmd/fetch.go`; the Security Hub path keeps a single overall bound, the scan engine uses per-call
+  timeouts.
+
+Deviations / carried into Phase 2:
+
+- **`--assume-role-name` and `--regions` are not wired yet.** `ScanOptions` and `ParseRegions` are
+  ready; the flags ship with the first check that calls `Scan`, as with `--impact-level` (D1).
+  Live verification of the fan-out is therefore manual until Phase 2 (`deploy/README.md` step 4).
+- **The TUI's 30s fetch bound will be too short once `Scan` joins the fetch** across a real org;
+  Phase 2 must give the native-check fetch its own budget.
+- Region discovery uses the Account Management API rather than `ec2:DescribeRegions`, keeping the
+  large EC2 SDK module out until SC-7 needs it.
+- `NOT_APPLICABLE` for a missing service relies on DNS NXDOMAIN for the regional endpoint; other
+  DNS failures stay `ERROR`. Revisit if a collector meets a service that fails differently.
+- Service-managed StackSets skip the management account; it needs its own stack (documented).
+
+Original scope:
 
 - **Account fan-out:** assume the dedicated read-only assessor role in each member account
   (D2: `cloudcomply-assessor` by default, `--assume-role-name` to override); single-account mode
@@ -274,8 +313,8 @@ passes tests and produces correct output against a real account.
 | Phase | Deliverable | Rough size | Blocked on |
 |---|---|---|---|
 | 0 | Reconnaissance report | 1 session | ✅ done |
-| 1a | Result + mapping model (statuses, crosswalk, scoring, SH adapter) | 1–2 sessions | ✅ implemented (in review) |
-| 1b | Execution layer (account/region fan-out, timeouts, partial results, test pattern) | ~1 weekend | — (D2, D3 decided) |
+| 1a | Result + mapping model (statuses, crosswalk, scoring, SH adapter) | 1–2 sessions | ✅ merged (#16) |
+| 1b | Execution layer (account/region fan-out, timeouts, partial results, test pattern) | ~1 weekend | ✅ implemented (in review) |
 | 2 | AU-12 checks (first native check) + tests | 1 session for 01/02; 03/04 after their decisions | Bedrock N/A detection; retention source |
 | 3 | TUI rendering for AI workload results + finding detail pane | 1–2 sessions | TUI placement decision |
 | 4 | SC-7 checks + tests (after Security Hub overlap review) | 1 weekend | — |
