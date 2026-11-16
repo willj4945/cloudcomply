@@ -68,6 +68,8 @@ The `json` output is a stable field contract — pipe it into `jq`, a CI gate, o
 cloudcomply report nist --format json | jq '[.[] | select(.status == "FAILED")]'
 ```
 
+`status` is one of `PASSED`, `FAILED`, `NOT_APPLICABLE` or `ERROR`. Security Hub and demo data only produce `PASSED`/`FAILED` today; the other two are reserved for cloudcomply's native checks (see [docs/ai-controls/plan.md](docs/ai-controls/plan.md)). `NOT_APPLICABLE` rows are excluded from the compliance score; `ERROR` rows (the check couldn't be evaluated, e.g. access denied) count against it. Consumers filtering on `status` should tolerate all four values. The TUI findings table shows `NOT_APPLICABLE` as `N/A` to save width; `report nist` output always uses the full value.
+
 An invalid `--format` value exits non-zero with an error on stderr, no usage dump:
 
 ```bash

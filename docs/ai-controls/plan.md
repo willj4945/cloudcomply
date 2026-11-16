@@ -8,10 +8,9 @@ NIST AI RMF 1.0, and the OWASP LLM Top 10.
 > the plan where it conflicts with reality, then proceed phase by phase. Do not let it
 > implement all three controls in one pass.
 
-> **Status:** Phase 0 complete — see [phase0-recon.md](phase0-recon.md). Its findings have been
-> applied below. Phase 1 is **required** (not conditional) and is split into 1a/1b. Items that
-> need an owner decision are collected under [Open decisions](#open-decisions) and block the
-> phases noted there. Next up: Phase 1a.
+> **Status:** Phase 0 complete — see [phase0-recon.md](phase0-recon.md). Phase 1a implemented
+> (in review). D1–D3 decided; D4–D6 open — see [Open decisions](#open-decisions). Next up:
+> Phase 1b.
 
 ---
 
@@ -69,7 +68,28 @@ refactor is Phase 1 and the controls shift back.
 Split into two reviewable increments. Neither adds an AI check; both must leave existing
 Security Hub behavior and `--demo` output unchanged.
 
-### 1a. Result + mapping model (pure Go, no AWS)
+### 1a. Result + mapping model (pure Go, no AWS) — implemented
+
+As built: `nist.CheckResult` + `nist.RollUp` (`internal/nist/rollup.go`), `nist.Tally` /
+`Summarize` scoring (`score.go`), `internal/crosswalk` (empty table + `Validate`, tested so every
+future entry is checked), and the Security Hub path rewritten as an adapter
+(`awsclient.toCheckResult` → `RollUp`). Demo table/JSON output and the rendered TUI were diffed
+against `main` and are byte-identical. Deviations from the bullets below:
+
+- Statuses reuse the existing `FindingStatus` values — `PASSED`/`FAILED` plus new
+  `NOT_APPLICABLE`/`ERROR` — rather than introducing `PASS`/`FAIL`, so the JSON enum only grows.
+- Control-level status precedence is `FAILED > ERROR > PASSED > NOT_APPLICABLE`: one failure fails
+  the control; any error with no failure means it can't be claimed as passing.
+- `ERROR` stays in the score denominator (counts against the score); `NOT_APPLICABLE` is excluded.
+- The crosswalk stores the SRG mapping as one `MinImpactLevel` (cumulative, matching the existing
+  model) rather than a list of ILs.
+- No `--impact-level` flag yet — per D1 it ships in Phase 2 with the first check that uses it.
+- **Security Hub behavior deliberately preserved, flagged for a follow-up decision:** a finding
+  listing several NIST requirements still counts only toward the first, and Security Hub
+  `NOT_AVAILABLE` findings are still dropped rather than reported as `ERROR`. The new model
+  supports both changes; making them shifts live scores, so they should be made on purpose.
+
+Original scope:
 
 - **Per-check result type**, distinct from today's per-control `nist.Finding` row:
   `CheckResult{CheckID, Status, Account, Region, Resource, Detail}` with
@@ -244,7 +264,7 @@ passes tests and produces correct output against a real account.
 | Phase | Deliverable | Rough size | Blocked on |
 |---|---|---|---|
 | 0 | Reconnaissance report | 1 session | ✅ done |
-| 1a | Result + mapping model (statuses, crosswalk, scoring, SH adapter) | 1–2 sessions | — (D1 decided) |
+| 1a | Result + mapping model (statuses, crosswalk, scoring, SH adapter) | 1–2 sessions | ✅ implemented (in review) |
 | 1b | Execution layer (account/region fan-out, timeouts, partial results, test pattern) | ~1 weekend | — (D2, D3 decided) |
 | 2 | AU-12 checks (first native check) + tests | 1 session for 01/02; 03/04 after their decisions | Bedrock N/A detection; retention source |
 | 3 | TUI rendering for AI workload results + finding detail pane | 1–2 sessions | TUI placement decision |
