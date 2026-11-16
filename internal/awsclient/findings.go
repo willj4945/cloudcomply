@@ -24,9 +24,12 @@ const nistStandardFilter = "standards/nist-800-53/v/5.0.0"
 const nistControlPrefix = "NIST.800-53.r5 "
 
 var statusMap = map[types.ComplianceStatus]nist.FindingStatus{
-	types.ComplianceStatusPassed:  nist.StatusPassed,
-	types.ComplianceStatusFailed:  nist.StatusFailed,
-	types.ComplianceStatusWarning: nist.StatusFailed,
+	types.ComplianceStatusPassed: nist.StatusPassed,
+	types.ComplianceStatusFailed: nist.StatusFailed,
+	// Every WARNING reason in the Security Hub CSPM User Guide's reason-code
+	// table is a cross-account / cross-Region "can't check from here" case
+	// (e.g. SNS_TOPIC_CROSS_ACCOUNT), not a detected misconfiguration.
+	types.ComplianceStatusWarning: nist.StatusError,
 	// NOT_AVAILABLE is classified by reason code in mapStatus; any future
 	// values are intentionally absent and the finding is skipped.
 }

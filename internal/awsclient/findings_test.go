@@ -126,8 +126,8 @@ func TestToCheckResult(t *testing.T) {
 	if r.CheckID != "CloudTrail.1" || r.Account != "111111111111" || r.Region != "us-gov-west-1" {
 		t.Errorf("identity fields = %q/%q/%q", r.CheckID, r.Account, r.Region)
 	}
-	if r.Status != nist.StatusFailed {
-		t.Errorf("WARNING mapped to %v, want FAILED", r.Status)
+	if r.Status != nist.StatusError {
+		t.Errorf("WARNING mapped to %v, want ERROR", r.Status)
 	}
 	if r.Severity != nist.SeverityLow {
 		t.Errorf("INFORMATIONAL mapped to %v, want LOW", r.Severity)
@@ -264,5 +264,27 @@ func TestRollUp_NotAvailableClassification(t *testing.T) {
 	}
 	if got[0].AccountsAffected != 0 {
 		t.Errorf("AccountsAffected = %d, want 0 (an error isn't a failure)", got[0].AccountsAffected)
+	}
+}
+
+// A WARNING (can't check from here) must not count as a failure: it doesn't
+// add to AccountsAffected or escalate severity, but it still stops the
+// control from claiming PASSED.
+func TestRollUp_WarningIsErrorNotFailure(t *testing.T) {
+	warn := finding("222222222222", "Alarms", []string{"NIST.800-53.r5 SI-4"}, types.ComplianceStatusWarning, types.SeverityLabelCritical)
+	warn.Compliance.StatusReasons = []types.StatusReason{{ReasonCode: aws.String("SNS_TOPIC_CROSS_ACCOUNT")}}
+
+	got := rollUp(
+		finding("111111111111", "Alarms", []string{"NIST.800-53.r5 SI-4"}, types.ComplianceStatusPassed, types.SeverityLabelLow),
+		warn,
+	)
+	f := got[0]
+	if f.Status != nist.StatusError || f.AccountsAffected != 0 || f.Severity != nist.SeverityLow {
+		t.Errorf("SI-4 = %v / %d accounts / %v; want ERROR / 0 / LOW", f.Status, f.AccountsAffected, f.Severity)
+	}
+
+	got = rollUp(warn, finding("333333333333", "Alarms", []string{"NIST.800-53.r5 SI-4"}, types.ComplianceStatusFailed, types.SeverityLabelHigh))
+	if got[0].Status != nist.StatusFailed || got[0].AccountsAffected != 1 {
+		t.Errorf("with a real failure: SI-4 = %v / %d accounts; want FAILED / 1", got[0].Status, got[0].AccountsAffected)
 	}
 }

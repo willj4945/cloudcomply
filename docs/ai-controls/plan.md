@@ -94,9 +94,10 @@ against `main` and are byte-identical. Deviations from the bullets below:
     `NOT_APPLICABLE`; no reason or an unrecognized code → still dropped. A blanket
     `NOT_AVAILABLE → ERROR` was rejected: one out-of-scope resource would flip a well-covered
     control from PASSED to ERROR.
-  - **Still open:** Security Hub `WARNING` maps to `FAILED`. Per the same AWS table every
-    `WARNING` reason is a cross-account / cross-Region "can't check from here" case, which
-    arguably belongs under `ERROR` instead. Not changed; needs an owner decision.
+  - Security Hub `WARNING` now maps to `ERROR` instead of `FAILED`. Per the same AWS table every
+    `WARNING` reason is a cross-account / cross-Region "can't check from here" case (e.g. an SNS
+    topic or S3 bucket owned by another account), not a detected misconfiguration. It no longer
+    adds to `AccountsAffected` or escalates severity, but still stops a control claiming PASSED.
 
 Original scope:
 
