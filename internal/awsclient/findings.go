@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"unicode"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/securityhub"
 	"github.com/aws/aws-sdk-go-v2/service/securityhub/types"
 
-	"cloudcomply/internal/nist"
+	"github.com/willj4945/cloudcomply/internal/nist"
 )
 
 // nistStandardFilter is the resource portion of the NIST SP 800-53 Rev 5
@@ -107,7 +108,7 @@ func mergeFinding(agg map[string]*controlAggregate, f types.AwsSecurityFinding) 
 			// official NIST 800-53 control title (no such lookup exists via
 			// this API). TODO(nistmap): replace with a real control-title
 			// lookup alongside the DoD SRG impact-level crosswalk.
-			title:    aws.ToString(f.Title),
+			title:    sanitizeText(aws.ToString(f.Title)),
 			severity: mapSeverity(f.Severity),
 			accounts: map[string]bool{},
 		}
@@ -159,7 +160,7 @@ func parseNISTControlID(c *types.Compliance) (controlID, family string, ok bool)
 		if !strings.HasPrefix(req, nistControlPrefix) {
 			continue
 		}
-		controlID = strings.TrimSpace(strings.TrimPrefix(req, nistControlPrefix))
+		controlID = strings.TrimSpace(sanitizeText(strings.TrimPrefix(req, nistControlPrefix)))
 		if idx := strings.Index(controlID, "-"); idx > 0 {
 			family = controlID[:idx]
 		}
@@ -176,4 +177,17 @@ func mapSeverity(s *types.Severity) nist.Severity {
 		return sev
 	}
 	return nist.SeverityLow
+}
+
+// sanitizeText drops control characters from text that reaches the terminal.
+// Finding titles can be written by any product integrated with Security Hub
+// (BatchImportFindings), so an embedded ANSI/OSC escape sequence would
+// otherwise be interpreted by the user's terminal in table and TUI output.
+func sanitizeText(s string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, s)
 }

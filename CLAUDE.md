@@ -17,12 +17,12 @@ Key design constraints:
 
 | Tool | Purpose |
 |------|---------|
-| Go 1.21+ | Primary language |
+| Go 1.24+ | Primary language |
 | Bubble Tea | Full-screen TUI (Elm architecture) |
 | Bubbles | TUI components — table, spinner, etc. |
 | Lip Gloss | Terminal styling |
-| Cobra | CLI command structure *(planned — not yet wired)* |
-| AWS SDK v2 | Live Security Hub + Organizations calls *(planned)* |
+| Cobra | CLI command structure |
+| AWS SDK v2 | Live Security Hub + Organizations calls |
 
 ## Architecture
 
@@ -64,6 +64,10 @@ type Finding struct {
 ### Demo mode
 
 `demoFindings()` in `main.go` generates ~27 realistic findings across 6 control families. The compliance score is calculated from this data (currently ~41%, intentionally low for demo realism). When adding live AWS integration, introduce a `--demo` flag rather than removing the fake data path.
+
+### Documentation
+
+User-facing docs are an MkDocs Material site in `docs/` (config: `mkdocs.yml`), published to https://willj4945.github.io/cloudcomply/ by `.github/workflows/docs.yml`. Any change to commands, flags, output fields, or AWS API calls must update the matching page (`docs/usage/cli.md`, `docs/usage/json-schema.md`, `docs/aws/permissions.md`). `docs/ai-controls/` is internal planning and is excluded from the site.
 
 ## Common Commands
 

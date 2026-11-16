@@ -2,7 +2,7 @@
 
 A repeatable plan for connecting cloudcomply to a real AWS environment and
 smoke-testing each build before you ship it. Pairs with [README.md](README.md)
-(install/build) and [CLI.md](CLI.md) (command reference).
+(install/build) and the [command reference](https://willj4945.github.io/cloudcomply/usage/cli/) (command reference).
 
 Since [f355469](../../commit/f355469), live mode is the **default** —
 `cloudcomply` and `cloudcomply report nist` both call Security Hub and
@@ -67,7 +67,7 @@ That means there are two setups worth testing, not one:
    cross-account aggregation from the delegated admin account. Without it,
    `GetNISTFindings` only sees findings local to whatever account/region the
    credentials point at.
-5. Apply the IAM policy from [README.md § AWS Permissions](README.md#aws-permissions)
+5. Apply the IAM policy from [IAM permissions](docs/aws/permissions.md)
    to the role/user you'll test with.
 
 You don't need to seed fake findings — misconfigured resources in a sandbox
@@ -108,7 +108,7 @@ when live mode fails.
 - [ ] `./cloudcomply --demo` — dashboard loads instantly, ~41% score, "Acme
       Federal Org" / 47 accounts
 - [ ] `./cloudcomply report nist --demo --format table` and `--format json`
-      both match the schema documented in [CLI.md](CLI.md)
+      both match the schema documented in the [command reference](https://willj4945.github.io/cloudcomply/usage/cli/)
 
 ### C. Credential/permission failure paths
 
@@ -181,12 +181,9 @@ Organization (or use an org member account without org-level permissions).
   (`findings.go` TODO — the real NIST→DoD SRG crosswalk isn't built yet).
   Impact-level filtering in the TUI will look correct structurally but isn't
   meaningful against live data until that lands.
-- The dashboard's "Run Full NIST Compliance Scan" menu item always shows a
-  "(demo mode)" message, even in live mode (`internal/tui/model.go`,
-  `handleMenuSelection` case 0) — cosmetic only, don't read into it.
-- [CLI.md](CLI.md) still says `report nist` "currently always reads from
-  demo dataset" — that's stale as of the live-integration commit; update it
-  alongside whichever release you're testing if you touch that doc.
+- The dashboard's "Run Full NIST Compliance Scan" menu item re-runs the
+  fetch (spinner, then refreshed results) — confirm it in both live and
+  demo mode.
 
 ---
 

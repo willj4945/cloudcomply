@@ -6,7 +6,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/securityhub/types"
 
-	"cloudcomply/internal/nist"
+	"github.com/willj4945/cloudcomply/internal/nist"
 )
 
 func finding(account, title string, relatedReqs []string, status types.ComplianceStatus, sev types.SeverityLabel) types.AwsSecurityFinding {
@@ -126,5 +126,19 @@ func TestFinalizeFindings_SortedByControlID(t *testing.T) {
 		if got[i].ControlID != id {
 			t.Errorf("got[%d].ControlID = %q, want %q", i, got[i].ControlID, id)
 		}
+	}
+}
+
+func TestMergeFinding_StripsControlCharsFromTitle(t *testing.T) {
+	agg := map[string]*controlAggregate{}
+	evil := "Bad\x1b]52;c;ZXZpbA==\x07Title\x1b[2J\n"
+	mergeFinding(agg, finding("111111111111", evil, []string{"NIST.800-53.r5 AC-2"}, types.ComplianceStatusFailed, types.SeverityLabelHigh))
+
+	got := finalizeFindings(agg)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 aggregated finding, got %d", len(got))
+	}
+	if want := "Bad]52;c;ZXZpbA==Title[2J"; got[0].Title != want {
+		t.Errorf("Title = %q, want %q", got[0].Title, want)
 	}
 }

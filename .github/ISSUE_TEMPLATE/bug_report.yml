@@ -1,0 +1,43 @@
+name: Bug report
+description: Something isn't working as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Security vulnerability?** Don't file it here. Use a [private security advisory](https://github.com/willj4945/cloudcomply/security/advisories/new).
+
+        ⚠️ **Redact AWS account IDs, ARNs, org IDs and finding details** before posting. This issue is public.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `cloudcomply --version`
+    validations:
+      required: true
+  - type: dropdown
+    id: env
+    attributes:
+      label: Where are you running it?
+      options: [AWS CloudShell, Linux, macOS, Windows, Termux, CI runner, Other]
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Mode
+      options: [Live - organization, Live - single account, Demo (--demo)]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Command run, expected vs actual behavior, and the error text (redacted).
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce

@@ -9,8 +9,19 @@ import (
 	"io"
 	"text/tabwriter"
 
-	"cloudcomply/internal/nist"
+	"github.com/willj4945/cloudcomply/internal/nist"
 )
+
+// ValidateFormat reports whether format is one RenderNIST accepts, so callers
+// can reject a bad flag before making any AWS calls.
+func ValidateFormat(format string) error {
+	switch format {
+	case "json", "table", "":
+		return nil
+	default:
+		return fmt.Errorf("unsupported format %q (want: table, json)", format)
+	}
+}
 
 // RenderNIST writes findings to w in the requested format ("table" or
 // "json"; "" defaults to "table").
@@ -23,7 +34,7 @@ func RenderNIST(w io.Writer, findings []nist.Finding, format string) error {
 	case "table", "":
 		return renderTable(w, findings)
 	default:
-		return fmt.Errorf("unsupported format %q (want: table, json)", format)
+		return ValidateFormat(format)
 	}
 }
 

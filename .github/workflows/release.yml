@@ -8,7 +8,6 @@ on:
 permissions:
   contents: write      # create GitHub releases
   id-token: write      # cosign keyless signing via OIDC
-  packages: write      # push to GHCR if needed
 
 jobs:
   release:
