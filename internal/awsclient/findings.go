@@ -24,11 +24,33 @@ const nistStandardFilter = "standards/nist-800-53/v/5.0.0"
 const nistControlPrefix = "NIST.800-53.r5 "
 
 var statusMap = map[types.ComplianceStatus]nist.FindingStatus{
-	types.ComplianceStatusPassed:  nist.StatusPassed,
-	types.ComplianceStatusFailed:  nist.StatusFailed,
-	types.ComplianceStatusWarning: nist.StatusFailed,
-	// NOT_AVAILABLE and any future values are intentionally absent — callers
-	// treat a missing map entry as "can't be scored, skip this finding".
+	types.ComplianceStatusPassed: nist.StatusPassed,
+	types.ComplianceStatusFailed: nist.StatusFailed,
+	// Every WARNING reason in the Security Hub CSPM User Guide's reason-code
+	// table is a cross-account / cross-Region "can't check from here" case
+	// (e.g. SNS_TOPIC_CROSS_ACCOUNT), not a detected misconfiguration.
+	types.ComplianceStatusWarning: nist.StatusError,
+	// NOT_AVAILABLE is classified by reason code in mapStatus; any future
+	// values are intentionally absent and the finding is skipped.
+}
+
+// notAvailableReasons classifies NOT_AVAILABLE findings by
+// Compliance.StatusReasons[].ReasonCode. Security Hub uses NOT_AVAILABLE for
+// both "couldn't evaluate" and "nothing to evaluate", and the reason code is
+// the only way to tell them apart. Source: the reason-code table in
+// "Compliance details for control findings", Security Hub CSPM User Guide
+// (controls-findings-create-update.html), retrieved 2026-11-16. Codes not
+// listed here, and findings with no reason, are skipped rather than guessed
+// at.
+var notAvailableReasons = map[string]nist.FindingStatus{
+	"CONFIG_ACCESS_DENIED":         nist.StatusError,
+	"CONFIG_RULE_EVALUATION_ERROR": nist.StatusError,
+	// The rule is still being created: the control genuinely hasn't been
+	// evaluated yet, so it can't be claimed as passing.
+	"CONFIG_RULE_NOT_FOUND":         nist.StatusError,
+	"INTERNAL_SERVICE_ERROR":        nist.StatusError,
+	"THROTTLING_ERROR":              nist.StatusError,
+	"CONFIG_RETURNS_NOT_APPLICABLE": nist.StatusNotApplicable,
 }
 
 var severityMap = map[types.SeverityLabel]nist.Severity{
@@ -70,17 +92,15 @@ func (c *Client) GetNISTFindings(ctx context.Context) ([]nist.Finding, error) {
 	return nist.RollUp(results), nil
 }
 
-// toCheckResult adapts one ASFF finding into the shared result model.
-// It deliberately preserves pre-CheckResult behavior so live output doesn't
-// shift under users: only the first NIST requirement is used even when a
-// finding lists several, and NOT_AVAILABLE findings are dropped rather than
-// reported as ERROR. Changing either is a scoring change to make on purpose.
+// toCheckResult adapts one ASFF finding into the shared result model. The
+// finding counts toward every NIST control it lists, matching how Security
+// Hub's own NIST standard attributes it.
 func toCheckResult(f types.AwsSecurityFinding) (nist.CheckResult, bool) {
-	controlID, ok := parseNISTControlID(f.Compliance)
-	if !ok {
+	controls := parseNISTControlIDs(f.Compliance)
+	if len(controls) == 0 {
 		return nist.CheckResult{}, false
 	}
-	status, scorable := statusMap[f.Compliance.Status]
+	status, scorable := mapStatus(f.Compliance)
 	if !scorable {
 		return nist.CheckResult{}, false
 	}
@@ -91,30 +111,74 @@ func toCheckResult(f types.AwsSecurityFinding) (nist.CheckResult, bool) {
 		// this API). TODO(nistmap): replace with a real control-title
 		// lookup alongside the DoD SRG impact-level crosswalk.
 		Title:    aws.ToString(f.Title),
-		Controls: []string{controlID},
+		Controls: controls,
 		Status:   status,
 		Severity: mapSeverity(f.Severity),
 		Account:  aws.ToString(f.AwsAccountId),
 		Region:   aws.ToString(f.Region),
+		Detail:   statusReasonDetail(f.Compliance),
 		// MinImpactLevel left empty: AWS has no concept of DoD SRG impact
 		// levels, so RollUp applies its IL2 placeholder. TODO(nistmap).
 	}, true
 }
 
-// parseNISTControlID extracts the first NIST 800-53 control ID (e.g. "AC-4")
-// from a finding's Compliance.RelatedRequirements.
-func parseNISTControlID(c *types.Compliance) (controlID string, ok bool) {
-	if c == nil {
+// mapStatus is only called after parseNISTControlIDs found a control, so c
+// is non-nil.
+func mapStatus(c *types.Compliance) (nist.FindingStatus, bool) {
+	if s, ok := statusMap[c.Status]; ok {
+		return s, true
+	}
+	if c.Status != types.ComplianceStatusNotAvailable {
 		return "", false
 	}
+	var status nist.FindingStatus
+	for _, r := range c.StatusReasons {
+		s := notAvailableReasons[aws.ToString(r.ReasonCode)]
+		if s == nist.StatusError {
+			return nist.StatusError, true
+		}
+		if s == nist.StatusNotApplicable {
+			status = s
+		}
+	}
+	return status, status != ""
+}
+
+// statusReasonDetail renders Compliance.StatusReasons as
+// "CODE: description; CODE: description" so an ERROR result says why.
+func statusReasonDetail(c *types.Compliance) string {
+	var parts []string
+	for _, r := range c.StatusReasons {
+		code := aws.ToString(r.ReasonCode)
+		if desc := aws.ToString(r.Description); desc != "" {
+			code += ": " + desc
+		}
+		parts = append(parts, code)
+	}
+	return strings.Join(parts, "; ")
+}
+
+// parseNISTControlIDs extracts every NIST 800-53 control ID (e.g. "AC-4")
+// from a finding's Compliance.RelatedRequirements, in order, without
+// duplicates. Malformed entries are skipped.
+func parseNISTControlIDs(c *types.Compliance) []string {
+	if c == nil {
+		return nil
+	}
+	var ids []string
+	seen := map[string]bool{}
 	for _, req := range c.RelatedRequirements {
 		if !strings.HasPrefix(req, nistControlPrefix) {
 			continue
 		}
-		controlID = strings.TrimSpace(strings.TrimPrefix(req, nistControlPrefix))
-		return controlID, strings.Index(controlID, "-") > 0
+		id := strings.TrimSpace(strings.TrimPrefix(req, nistControlPrefix))
+		if strings.Index(id, "-") <= 0 || seen[id] {
+			continue
+		}
+		seen[id] = true
+		ids = append(ids, id)
 	}
-	return "", false
+	return ids
 }
 
 func mapSeverity(s *types.Severity) nist.Severity {
