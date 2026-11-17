@@ -7,13 +7,16 @@
 `report nist` exits `0` when controls fail (see [exit codes](cli.md#exit-codes)), so use `jq -e` to turn your policy into an exit code:
 
 ```bash
+# Fail if any control couldn't be evaluated (permissions / AWS Config gaps)
+cloudcomply report nist --format json | jq -e 'all(.status != "ERROR")'
+
 # Fail if any CRITICAL control is failing
 cloudcomply report nist --format json \
   | jq -e '[.[] | select(.status=="FAILED" and .severity=="CRITICAL")] | length == 0'
 
-# Fail if overall compliance drops below 80%
+# Fail if overall compliance drops below 80% (NOT_APPLICABLE excluded, like the dashboard)
 cloudcomply report nist --format json \
-  | jq -e '((map(select(.status=="PASSED")) | length) * 100 / length) >= 80'
+  | jq -e 'map(select(.status!="NOT_APPLICABLE")) | (map(select(.status=="PASSED")) | length) * 100 / ([length,1] | max) >= 80'
 ```
 
 !!! tip "Don't pipe straight into the gate"

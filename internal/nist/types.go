@@ -15,6 +15,13 @@ const (
 
 	StatusFailed FindingStatus = "FAILED"
 	StatusPassed FindingStatus = "PASSED"
+	// StatusNotApplicable marks a check whose subject doesn't exist in scope
+	// (e.g. no Bedrock usage in an account). Excluded from score denominators.
+	StatusNotApplicable FindingStatus = "NOT_APPLICABLE"
+	// StatusError marks a check that couldn't be evaluated (access denied,
+	// API failure). It is never counted as a pass: a tool that reports
+	// compliance because it couldn't see anything is worse than no tool.
+	StatusError FindingStatus = "ERROR"
 )
 
 // ImpactLevel is a DoD Cloud Computing SRG Impact Level (IL2/IL4/IL5/IL6).
@@ -38,6 +45,11 @@ func impactLevelIndex(l ImpactLevel) int {
 		}
 	}
 	return -1
+}
+
+// Valid reports whether l is one of the defined impact levels.
+func (l ImpactLevel) Valid() bool {
+	return impactLevelIndex(l) >= 0
 }
 
 // ImpactLevelAtOrBelow reports whether a control whose minimum required
@@ -73,4 +85,25 @@ type OrgSummary struct {
 	// falls back to scoring the single account rather than failing outright,
 	// since org-wide access is often gated behind separate approval.
 	IsOrgMode bool `json:"is_org_mode"`
+}
+
+// CheckResult is one evaluation of one check against one resource (or
+// account/region scope). It is the unit both Security Hub findings and
+// native checks are normalized into; RollUp aggregates results into the
+// per-control Finding rows that the TUI and `report nist` display.
+type CheckResult struct {
+	CheckID  string        `json:"check_id"`
+	Title    string        `json:"title"`
+	Controls []string      `json:"controls"` // NIST 800-53 Rev 5 IDs, e.g. "AU-12"
+	Status   FindingStatus `json:"status"`
+	Severity Severity      `json:"severity"`
+	Account  string        `json:"account"`
+	Region   string        `json:"region,omitempty"`
+	Resource string        `json:"resource,omitempty"`
+	// Detail explains a FAILED/ERROR result; for ERROR it names the denied
+	// action or failing API call.
+	Detail string `json:"detail,omitempty"`
+	// MinImpactLevel is empty when unknown; RollUp then falls back to IL2,
+	// matching the Security Hub path's long-standing placeholder.
+	MinImpactLevel ImpactLevel `json:"min_impact_level,omitempty"`
 }

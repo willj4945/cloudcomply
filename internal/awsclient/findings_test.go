@@ -21,39 +21,130 @@ func finding(account, title string, relatedReqs []string, status types.Complianc
 	}
 }
 
-func TestParseNISTControlID(t *testing.T) {
+func TestParseNISTControlIDs(t *testing.T) {
 	tests := []struct {
-		name    string
-		reqs    []string
-		wantID  string
-		wantFam string
-		wantOK  bool
+		name string
+		reqs []string
+		want []string
 	}{
-		{"matches", []string{"NIST.800-53.r5 AC-4", "PCI.DSS.321 1.2"}, "AC-4", "AC", true},
-		{"no match", []string{"PCI.DSS.321 1.2"}, "", "", false},
-		{"nil requirements", nil, "", "", false},
+		{"single", []string{"NIST.800-53.r5 AC-4", "PCI.DSS.321 1.2"}, []string{"AC-4"}},
+		{"every NIST requirement, in order", []string{"NIST.800-53.r5 AC-4", "PCI.DSS.321 1.2", "NIST.800-53.r5 SC-7"}, []string{"AC-4", "SC-7"}},
+		{"duplicates collapsed", []string{"NIST.800-53.r5 AC-4", "NIST.800-53.r5 AC-4"}, []string{"AC-4"}},
+		{"malformed skipped, valid kept", []string{"NIST.800-53.r5 bogus", "NIST.800-53.r5 AU-12"}, []string{"AU-12"}},
+		{"no match", []string{"PCI.DSS.321 1.2"}, nil},
+		{"nil requirements", nil, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &types.Compliance{RelatedRequirements: tt.reqs}
-			id, fam, ok := parseNISTControlID(c)
-			if id != tt.wantID || fam != tt.wantFam || ok != tt.wantOK {
-				t.Errorf("parseNISTControlID(%v) = %q, %q, %v; want %q, %q, %v",
-					tt.reqs, id, fam, ok, tt.wantID, tt.wantFam, tt.wantOK)
+			got := parseNISTControlIDs(&types.Compliance{RelatedRequirements: tt.reqs})
+			if len(got) != len(tt.want) {
+				t.Fatalf("parseNISTControlIDs(%v) = %v, want %v", tt.reqs, got, tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("parseNISTControlIDs(%v) = %v, want %v", tt.reqs, got, tt.want)
+				}
 			}
 		})
 	}
-	if _, _, ok := parseNISTControlID(nil); ok {
-		t.Error("parseNISTControlID(nil) should return ok=false")
+	if got := parseNISTControlIDs(nil); got != nil {
+		t.Errorf("parseNISTControlIDs(nil) = %v, want nil", got)
 	}
 }
 
-func TestMergeAndFinalize_AllPassed(t *testing.T) {
-	agg := map[string]*controlAggregate{}
-	mergeFinding(agg, finding("111111111111", "Account Management", []string{"NIST.800-53.r5 AC-2"}, types.ComplianceStatusPassed, types.SeverityLabelLow))
-	mergeFinding(agg, finding("222222222222", "Account Management", []string{"NIST.800-53.r5 AC-2"}, types.ComplianceStatusPassed, types.SeverityLabelLow))
+func notAvailable(account string, controls []string, reasonCodes ...string) types.AwsSecurityFinding {
+	f := finding(account, "Unevaluated", controls, types.ComplianceStatusNotAvailable, types.SeverityLabelMedium)
+	for _, code := range reasonCodes {
+		f.Compliance.StatusReasons = append(f.Compliance.StatusReasons, types.StatusReason{ReasonCode: aws.String(code)})
+	}
+	return f
+}
 
-	got := finalizeFindings(agg)
+func TestMapStatus_NotAvailableByReasonCode(t *testing.T) {
+	tests := []struct {
+		name   string
+		codes  []string
+		want   nist.FindingStatus
+		wantOK bool
+	}{
+		{"config access denied", []string{"CONFIG_ACCESS_DENIED"}, nist.StatusError, true},
+		{"rule evaluation error", []string{"CONFIG_RULE_EVALUATION_ERROR"}, nist.StatusError, true},
+		{"rule still being created", []string{"CONFIG_RULE_NOT_FOUND"}, nist.StatusError, true},
+		{"internal service error", []string{"INTERNAL_SERVICE_ERROR"}, nist.StatusError, true},
+		{"throttling", []string{"THROTTLING_ERROR"}, nist.StatusError, true},
+		{"config says not applicable", []string{"CONFIG_RETURNS_NOT_APPLICABLE"}, nist.StatusNotApplicable, true},
+		{"error outranks not applicable", []string{"CONFIG_RETURNS_NOT_APPLICABLE", "THROTTLING_ERROR"}, nist.StatusError, true},
+		{"unrecognized code skipped", []string{"SOMETHING_NEW"}, "", false},
+		{"no reason skipped", nil, "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := mapStatus(notAvailable("1", []string{"NIST.800-53.r5 AC-6"}, tt.codes...).Compliance)
+			if got != tt.want || ok != tt.wantOK {
+				t.Errorf("mapStatus(NOT_AVAILABLE %v) = %q, %v; want %q, %v", tt.codes, got, ok, tt.want, tt.wantOK)
+			}
+		})
+	}
+}
+
+func TestToCheckResult_DetailCarriesReason(t *testing.T) {
+	f := notAvailable("1", []string{"NIST.800-53.r5 AC-6"})
+	f.Compliance.StatusReasons = []types.StatusReason{{
+		ReasonCode:  aws.String("CONFIG_RULE_EVALUATION_ERROR"),
+		Description: aws.String("missing permission s3:GetBucketPolicy"),
+	}}
+	r, ok := toCheckResult(f)
+	if !ok || r.Status != nist.StatusError {
+		t.Fatalf("toCheckResult = %+v, %v; want ERROR", r, ok)
+	}
+	if want := "CONFIG_RULE_EVALUATION_ERROR: missing permission s3:GetBucketPolicy"; r.Detail != want {
+		t.Errorf("Detail = %q, want %q", r.Detail, want)
+	}
+}
+
+// rollUp runs ASFF findings through the adapter and the shared rollup, the
+// same path GetNISTFindings takes after paging.
+func rollUp(findings ...types.AwsSecurityFinding) []nist.Finding {
+	var results []nist.CheckResult
+	for _, f := range findings {
+		if r, ok := toCheckResult(f); ok {
+			results = append(results, r)
+		}
+	}
+	return nist.RollUp(results)
+}
+
+func TestToCheckResult(t *testing.T) {
+	f := finding("111111111111", "Logging", []string{"NIST.800-53.r5 AU-12"}, types.ComplianceStatusWarning, types.SeverityLabelInformational)
+	f.Compliance.SecurityControlId = aws.String("CloudTrail.1")
+	f.Region = aws.String("us-gov-west-1")
+
+	r, ok := toCheckResult(f)
+	if !ok {
+		t.Fatal("toCheckResult returned ok=false for a scorable NIST finding")
+	}
+	if r.CheckID != "CloudTrail.1" || r.Account != "111111111111" || r.Region != "us-gov-west-1" {
+		t.Errorf("identity fields = %q/%q/%q", r.CheckID, r.Account, r.Region)
+	}
+	if r.Status != nist.StatusError {
+		t.Errorf("WARNING mapped to %v, want ERROR", r.Status)
+	}
+	if r.Severity != nist.SeverityLow {
+		t.Errorf("INFORMATIONAL mapped to %v, want LOW", r.Severity)
+	}
+	if len(r.Controls) != 1 || r.Controls[0] != "AU-12" {
+		t.Errorf("Controls = %v, want [AU-12]", r.Controls)
+	}
+	if r.Detail != "" {
+		t.Errorf("Detail = %q, want empty (no status reasons)", r.Detail)
+	}
+}
+
+func TestRollUp_AllPassed(t *testing.T) {
+	got := rollUp(
+		finding("111111111111", "Account Management", []string{"NIST.800-53.r5 AC-2"}, types.ComplianceStatusPassed, types.SeverityLabelLow),
+		finding("222222222222", "Account Management", []string{"NIST.800-53.r5 AC-2"}, types.ComplianceStatusPassed, types.SeverityLabelLow),
+	)
 	if len(got) != 1 {
 		t.Fatalf("expected 1 aggregated finding, got %d", len(got))
 	}
@@ -69,15 +160,14 @@ func TestMergeAndFinalize_AllPassed(t *testing.T) {
 	}
 }
 
-func TestMergeAndFinalize_SomeFailedAcrossAccounts(t *testing.T) {
-	agg := map[string]*controlAggregate{}
-	mergeFinding(agg, finding("111111111111", "Account Management", []string{"NIST.800-53.r5 AC-2"}, types.ComplianceStatusFailed, types.SeverityLabelHigh))
-	mergeFinding(agg, finding("222222222222", "Account Management", []string{"NIST.800-53.r5 AC-2"}, types.ComplianceStatusFailed, types.SeverityLabelCritical))
-	mergeFinding(agg, finding("333333333333", "Account Management", []string{"NIST.800-53.r5 AC-2"}, types.ComplianceStatusPassed, types.SeverityLabelLow))
-	// Duplicate account+control failure shouldn't double-count.
-	mergeFinding(agg, finding("111111111111", "Account Management", []string{"NIST.800-53.r5 AC-2"}, types.ComplianceStatusFailed, types.SeverityLabelHigh))
-
-	got := finalizeFindings(agg)
+func TestRollUp_SomeFailedAcrossAccounts(t *testing.T) {
+	got := rollUp(
+		finding("111111111111", "Account Management", []string{"NIST.800-53.r5 AC-2"}, types.ComplianceStatusFailed, types.SeverityLabelHigh),
+		finding("222222222222", "Account Management", []string{"NIST.800-53.r5 AC-2"}, types.ComplianceStatusFailed, types.SeverityLabelCritical),
+		finding("333333333333", "Account Management", []string{"NIST.800-53.r5 AC-2"}, types.ComplianceStatusPassed, types.SeverityLabelLow),
+		// Duplicate account+control failure shouldn't double-count.
+		finding("111111111111", "Account Management", []string{"NIST.800-53.r5 AC-2"}, types.ComplianceStatusFailed, types.SeverityLabelHigh),
+	)
 	if len(got) != 1 {
 		t.Fatalf("expected 1 aggregated finding, got %d", len(got))
 	}
@@ -99,25 +189,24 @@ func TestMergeAndFinalize_SomeFailedAcrossAccounts(t *testing.T) {
 	}
 }
 
-func TestMergeFinding_SkipsUnscorableAndNonNIST(t *testing.T) {
-	agg := map[string]*controlAggregate{}
-	// Not a NIST 800-53 finding at all.
-	mergeFinding(agg, finding("111111111111", "Other", []string{"PCI.DSS.321 1.2"}, types.ComplianceStatusFailed, types.SeverityLabelHigh))
-	// NIST finding but NOT_AVAILABLE — can't be scored.
-	mergeFinding(agg, finding("111111111111", "Other", []string{"NIST.800-53.r5 SC-7"}, types.ComplianceStatusNotAvailable, types.SeverityLabelHigh))
-
-	if len(agg) != 0 {
-		t.Errorf("expected no aggregated controls, got %d", len(agg))
+func TestToCheckResult_SkipsUnscorableAndNonNIST(t *testing.T) {
+	got := rollUp(
+		// Not a NIST 800-53 finding at all.
+		finding("111111111111", "Other", []string{"PCI.DSS.321 1.2"}, types.ComplianceStatusFailed, types.SeverityLabelHigh),
+		// NOT_AVAILABLE with no reason code — can't be classified, so skipped.
+		finding("111111111111", "Other", []string{"NIST.800-53.r5 SC-7"}, types.ComplianceStatusNotAvailable, types.SeverityLabelHigh),
+	)
+	if len(got) != 0 {
+		t.Errorf("expected no aggregated controls, got %d", len(got))
 	}
 }
 
-func TestFinalizeFindings_SortedByControlID(t *testing.T) {
-	agg := map[string]*controlAggregate{}
-	mergeFinding(agg, finding("1", "t", []string{"NIST.800-53.r5 SI-2"}, types.ComplianceStatusPassed, types.SeverityLabelLow))
-	mergeFinding(agg, finding("1", "t", []string{"NIST.800-53.r5 AC-2"}, types.ComplianceStatusPassed, types.SeverityLabelLow))
-	mergeFinding(agg, finding("1", "t", []string{"NIST.800-53.r5 CM-6"}, types.ComplianceStatusPassed, types.SeverityLabelLow))
-
-	got := finalizeFindings(agg)
+func TestRollUp_SortedByControlID(t *testing.T) {
+	got := rollUp(
+		finding("1", "t", []string{"NIST.800-53.r5 SI-2"}, types.ComplianceStatusPassed, types.SeverityLabelLow),
+		finding("1", "t", []string{"NIST.800-53.r5 AC-2"}, types.ComplianceStatusPassed, types.SeverityLabelLow),
+		finding("1", "t", []string{"NIST.800-53.r5 CM-6"}, types.ComplianceStatusPassed, types.SeverityLabelLow),
+	)
 	want := []string{"AC-2", "CM-6", "SI-2"}
 	if len(got) != len(want) {
 		t.Fatalf("got %d findings, want %d", len(got), len(want))
@@ -129,16 +218,96 @@ func TestFinalizeFindings_SortedByControlID(t *testing.T) {
 	}
 }
 
-func TestMergeFinding_StripsControlCharsFromTitle(t *testing.T) {
-	agg := map[string]*controlAggregate{}
-	evil := "Bad\x1b]52;c;ZXZpbA==\x07Title\x1b[2J\n"
-	mergeFinding(agg, finding("111111111111", evil, []string{"NIST.800-53.r5 AC-2"}, types.ComplianceStatusFailed, types.SeverityLabelHigh))
-
-	got := finalizeFindings(agg)
-	if len(got) != 1 {
-		t.Fatalf("expected 1 aggregated finding, got %d", len(got))
+// The worked example from the scoring-change discussion: F's failure used to
+// be credited only to SC-7, hiding that AC-4 fails too.
+func TestRollUp_FindingCountsTowardEveryListedControl(t *testing.T) {
+	got := rollUp(
+		finding("1", "P", []string{"NIST.800-53.r5 AC-3", "NIST.800-53.r5 AC-6"}, types.ComplianceStatusPassed, types.SeverityLabelLow),
+		finding("1", "F", []string{"NIST.800-53.r5 SC-7", "NIST.800-53.r5 AC-4"}, types.ComplianceStatusFailed, types.SeverityLabelHigh),
+		finding("1", "Q", []string{"NIST.800-53.r5 AC-4"}, types.ComplianceStatusPassed, types.SeverityLabelLow),
+	)
+	want := map[string]nist.FindingStatus{
+		"AC-3": nist.StatusPassed,
+		"AC-4": nist.StatusFailed,
+		"AC-6": nist.StatusPassed,
+		"SC-7": nist.StatusFailed,
 	}
-	if want := "Bad]52;c;ZXZpbA==Title[2J"; got[0].Title != want {
-		t.Errorf("Title = %q, want %q", got[0].Title, want)
+	if len(got) != len(want) {
+		t.Fatalf("got %d controls, want %d: %+v", len(got), len(want), got)
+	}
+	for _, f := range got {
+		if f.Status != want[f.ControlID] {
+			t.Errorf("%s = %v, want %v", f.ControlID, f.Status, want[f.ControlID])
+		}
+	}
+	if score := nist.ComplianceScore(got); score != 50 {
+		t.Errorf("score = %d, want 50", score)
+	}
+}
+
+// A not-applicable NOT_AVAILABLE must not knock a well-covered control off
+// PASSED; a genuine evaluation failure must stop it claiming a pass.
+func TestRollUp_NotAvailableClassification(t *testing.T) {
+	passes := make([]types.AwsSecurityFinding, 40)
+	for i := range passes {
+		passes[i] = finding("1", "Least Privilege", []string{"NIST.800-53.r5 AC-6"}, types.ComplianceStatusPassed, types.SeverityLabelLow)
+	}
+
+	got := rollUp(append(passes, notAvailable("1", []string{"NIST.800-53.r5 AC-6"}, "CONFIG_RETURNS_NOT_APPLICABLE"))...)
+	if got[0].Status != nist.StatusPassed {
+		t.Errorf("with not-applicable reason: AC-6 = %v, want PASSED", got[0].Status)
+	}
+
+	got = rollUp(append(passes, notAvailable("1", []string{"NIST.800-53.r5 AC-6"}, "CONFIG_ACCESS_DENIED"))...)
+	if got[0].Status != nist.StatusError {
+		t.Errorf("with access-denied reason: AC-6 = %v, want ERROR", got[0].Status)
+	}
+	if got[0].AccountsAffected != 0 {
+		t.Errorf("AccountsAffected = %d, want 0 (an error isn't a failure)", got[0].AccountsAffected)
+	}
+}
+
+// A WARNING (can't check from here) must not count as a failure: it doesn't
+// add to AccountsAffected or escalate severity, but it still stops the
+// control from claiming PASSED.
+func TestRollUp_WarningIsErrorNotFailure(t *testing.T) {
+	warn := finding("222222222222", "Alarms", []string{"NIST.800-53.r5 SI-4"}, types.ComplianceStatusWarning, types.SeverityLabelCritical)
+	warn.Compliance.StatusReasons = []types.StatusReason{{ReasonCode: aws.String("SNS_TOPIC_CROSS_ACCOUNT")}}
+
+	got := rollUp(
+		finding("111111111111", "Alarms", []string{"NIST.800-53.r5 SI-4"}, types.ComplianceStatusPassed, types.SeverityLabelLow),
+		warn,
+	)
+	f := got[0]
+	if f.Status != nist.StatusError || f.AccountsAffected != 0 || f.Severity != nist.SeverityLow {
+		t.Errorf("SI-4 = %v / %d accounts / %v; want ERROR / 0 / LOW", f.Status, f.AccountsAffected, f.Severity)
+	}
+
+	got = rollUp(warn, finding("333333333333", "Alarms", []string{"NIST.800-53.r5 SI-4"}, types.ComplianceStatusFailed, types.SeverityLabelHigh))
+	if got[0].Status != nist.StatusFailed || got[0].AccountsAffected != 1 {
+		t.Errorf("with a real failure: SI-4 = %v / %d accounts; want FAILED / 1", got[0].Status, got[0].AccountsAffected)
+	}
+}
+
+func TestToCheckResult_StripsControlChars(t *testing.T) {
+	evil := "Bad\x1b]52;c;ZXZpbA==\x07Title\x1b[2J\n"
+	f := finding("111111111111", evil, []string{"NIST.800-53.r5 AC-2\x1b[31m"}, types.ComplianceStatusNotAvailable, types.SeverityLabelHigh)
+	f.Compliance.StatusReasons = []types.StatusReason{{
+		ReasonCode:  aws.String("CONFIG_ACCESS_DENIED"),
+		Description: aws.String("denied\x1b[2J"),
+	}}
+
+	r, ok := toCheckResult(f)
+	if !ok {
+		t.Fatal("toCheckResult returned ok=false")
+	}
+	if want := "Bad]52;c;ZXZpbA==Title[2J"; r.Title != want {
+		t.Errorf("Title = %q, want %q", r.Title, want)
+	}
+	if want := []string{"AC-2[31m"}; len(r.Controls) != 1 || r.Controls[0] != want[0] {
+		t.Errorf("Controls = %q, want %q", r.Controls, want)
+	}
+	if want := "CONFIG_ACCESS_DENIED: denied[2J"; r.Detail != want {
+		t.Errorf("Detail = %q, want %q", r.Detail, want)
 	}
 }

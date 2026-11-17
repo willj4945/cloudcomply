@@ -46,14 +46,14 @@ Current views:
 
 ### Data model
 
-`Finding` is the core type. Its fields mirror real AWS Security Hub NIST findings intentionally — switching from fake to live data means replacing `demoFindings()` only, nothing else.
+`Finding` is the per-control row every view and `report nist` renders. Sources produce `nist.CheckResult`s (one per check × resource/account/region, possibly mapped to several controls) and `nist.RollUp` aggregates them into `Finding`s; scoring excludes `NOT_APPLICABLE` and counts `ERROR` against the score. Framework mappings for native checks live in `internal/crosswalk`. `Finding`'s fields mirror real AWS Security Hub NIST findings intentionally — switching from fake to live data means replacing `demoFindings()` only, nothing else.
 
 ```go
 type Finding struct {
     ControlID        string
     Title            string
     Family           string        // "AC", "AU", "CM", "IA", "SC", "SI"
-    Status           FindingStatus // PASSED | FAILED
+    Status           FindingStatus // PASSED | FAILED | NOT_APPLICABLE | ERROR
     Severity         Severity      // CRITICAL | HIGH | MEDIUM | LOW
     AccountsAffected int
     RMFStep          string        // "Assess" | "Monitor" | "Implement" | etc.

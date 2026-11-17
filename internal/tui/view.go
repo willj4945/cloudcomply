@@ -120,28 +120,9 @@ func (m model) findingsView() string {
 		}
 	}
 
-	// Pass/fail counts for current filter
-	passed, failed := 0, 0
-	for _, f := range m.findings {
-		if m.familyFilter != "ALL" && f.Family != m.familyFilter {
-			continue
-		}
-		if m.impactFilter != "ALL" && !nist.ImpactLevelAtOrBelow(f.MinImpactLevel, nist.ImpactLevel(m.impactFilter)) {
-			continue
-		}
-		if f.Status == nist.StatusPassed {
-			passed++
-		} else {
-			failed++
-		}
-	}
-
 	tabBar := "Family:       " + strings.Join(tabs, "")
 	ilTabBar := "Impact Level: " + strings.Join(ilTabs, "")
-	stats := fmt.Sprintf("  %s   %s",
-		passStyle.Render(fmt.Sprintf("✓ %d passed", passed)),
-		failStyle.Render(fmt.Sprintf("✗ %d failed", failed)),
-	)
+	stats := tallyLine(nist.Summarize(filterFindings(m.findings, m.familyFilter, m.impactFilter)))
 
 	help := helpStyle.Render("↑/k ↓/j: scroll • ←/→ h/l: filter family • [/]: filter impact level • esc/q: back")
 
@@ -153,4 +134,20 @@ func (m model) findingsView() string {
 		tableBoxStyle.Render(m.findingsTable.View()),
 		help,
 	)
+}
+
+// tallyLine omits N/A and error counts when zero so the common Security Hub
+// case reads exactly as before.
+func tallyLine(t nist.Tally) string {
+	parts := []string{
+		passStyle.Render(fmt.Sprintf("✓ %d passed", t.Passed)),
+		failStyle.Render(fmt.Sprintf("✗ %d failed", t.Failed)),
+	}
+	if t.Errors > 0 {
+		parts = append(parts, errorStyle.Render(fmt.Sprintf("! %d error", t.Errors)))
+	}
+	if t.NotApplicable > 0 {
+		parts = append(parts, naStyle.Render(fmt.Sprintf("– %d n/a", t.NotApplicable)))
+	}
+	return "  " + strings.Join(parts, "   ")
 }

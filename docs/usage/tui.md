@@ -15,7 +15,7 @@ The landing screen shows:
 |---|---|
 | Organization / Account | AWS Organization ID, or the account ID in single-account mode |
 | Accounts in Org / Accounts Scanned | `organizations:ListAccounts` count, or `1` in single-account mode |
-| NIST 800-53 | Percentage of controls with status `PASSED`, colored green (≥ 85%), orange (70–84%) or red (< 70%) |
+| NIST 800-53 | `PASSED` ÷ (`PASSED` + `FAILED` + `ERROR`) controls, colored green (≥ 85%), orange (70–84%) or red (< 70%). See [scoring](../concepts/scoring.md#5-score). |
 | DoD SRG (IL5 Mission Owner) | The same score limited to controls whose minimum Impact Level is IL5 or lower |
 
 ### Main menu
@@ -38,13 +38,13 @@ A scrollable table with one row per NIST control:
 |---|---|
 | Control | NIST SP 800-53 Rev. 5 control ID, e.g. `AC-2`, `SC-28(1)` |
 | Title | Control title (in live mode, Security Hub's security-control title, see [scoring](../concepts/scoring.md#titles)) |
-| Status | `PASSED` or `FAILED` |
+| Status | `PASSED`, `FAILED`, `ERROR` (couldn't be evaluated) or `N/A` (`NOT_APPLICABLE`, shortened to fit the column) |
 | Severity | Highest severity among failing findings for the control |
 | Accounts | Number of distinct accounts with at least one failing finding |
-| RMF Step | `Assess` for failing controls, `Monitor` for passing ones |
+| RMF Step | `Assess` for failing or errored controls, `Monitor` otherwise |
 | Min IL | Lowest DoD SRG Impact Level that requires the control |
 
-There are two independent filters, and the pass/fail counts update as you change them:
+There are two independent filters. The tally above the table (passed, failed, and error / n/a counts when non-zero) updates as you change them:
 
 - **Family**: `ALL`, `AC`, `AU`, `CM`, `IA`, `SC`, `SI`
 - **Impact Level**: `ALL`, `IL2`, `IL4`, `IL5`, `IL6`. Choosing a level shows every control required *at or below* it, since levels stack.

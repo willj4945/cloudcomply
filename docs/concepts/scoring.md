@@ -9,9 +9,9 @@ cloudcomply doesn't evaluate AWS resources itself. It **aggregates** the per-res
 - `ComplianceAssociatedStandardsId = standards/nist-800-53/v/5.0.0`
 - `RecordState = ACTIVE` (archived findings are ignored)
 
-## 2. Map each finding to a NIST control
+## 2. Map each finding to NIST controls
 
-Each Security Hub finding lists NIST control IDs in `Compliance.RelatedRequirements`, e.g. `NIST.800-53.r5 AC-4`. cloudcomply takes the **first** `NIST.800-53.r5` entry as the control ID and the part before the first `-` as the family.
+Each Security Hub finding lists NIST control IDs in `Compliance.RelatedRequirements`, e.g. `NIST.800-53.r5 AC-4`. A finding counts toward **every** `NIST.800-53.r5` control it lists, the same way Security Hub's own NIST standard attributes it. Duplicate and malformed entries are skipped. The family is the part of the control ID before the first `-`.
 
 Findings with no NIST requirement are skipped.
 
@@ -19,31 +19,51 @@ Findings with no NIST requirement are skipped.
 
 | Security Hub `Compliance.Status` | cloudcomply |
 |---|---|
-| `PASSED` | PASSED |
-| `FAILED` | FAILED |
-| `WARNING` | FAILED (conservative, since a warning isn't proof of compliance) |
-| `NOT_AVAILABLE` | Skipped (can't be scored) |
+| `PASSED` | `PASSED` |
+| `FAILED` | `FAILED` |
+| `WARNING` | `ERROR`: every documented `WARNING` reason is a cross-account or cross-Region resource Security Hub can't check from where it runs, not a detected misconfiguration |
+| `NOT_AVAILABLE` | Classified by `Compliance.StatusReasons[].ReasonCode` (see below) |
+
+`NOT_AVAILABLE` reason codes, per the reason-code table in the Security Hub CSPM User Guide:
+
+| Reason code | cloudcomply |
+|---|---|
+| `CONFIG_ACCESS_DENIED`, `CONFIG_RULE_EVALUATION_ERROR`, `CONFIG_RULE_NOT_FOUND`, `INTERNAL_SERVICE_ERROR`, `THROTTLING_ERROR` | `ERROR` |
+| `CONFIG_RETURNS_NOT_APPLICABLE` | `NOT_APPLICABLE` |
+| No reason, or an unrecognized code | Skipped |
+
+If a finding has several reasons, an error reason outranks a not-applicable one.
 
 ## 4. Aggregate per control
 
-For each control ID:
+For each control ID, the status is the highest-ranked status among all its findings, across every account:
 
-- **Status** is `FAILED` if **any** finding for the control failed in **any** account, and `PASSED` otherwise.
-- **Severity** is the highest severity among failing findings (`CRITICAL` > `HIGH` > `MEDIUM` > `LOW`; `INFORMATIONAL` counts as `LOW`).
-- **Accounts affected** is the number of distinct account IDs with at least one failing finding.
-- **RMF step** is `Assess` if failing, `Monitor` if passing.
+```text
+FAILED  >  ERROR  >  PASSED  >  NOT_APPLICABLE
+```
+
+So one failure fails the control. With no failures, any error means the control can't be claimed as passing. A control is `NOT_APPLICABLE` only if every finding for it is.
+
+- **Severity** is the highest severity among failing findings (`CRITICAL` > `HIGH` > `MEDIUM` > `LOW`; `INFORMATIONAL` counts as `LOW`). Errors don't raise it.
+- **Accounts affected** is the number of distinct account IDs with at least one `FAILED` finding. Errors don't count.
+- **RMF step** is `Assess` for `FAILED` or `ERROR`, and `Monitor` otherwise.
 
 ## 5. Score
 
 ```text
-compliance % = floor( PASSED controls / total controls × 100 )
+compliance % = floor( PASSED / (PASSED + FAILED + ERROR) × 100 )
 ```
 
-Every control counts the same. Severity and the number of affected accounts don't change the score; they're there for prioritizing.
+- `NOT_APPLICABLE` controls are left out entirely.
+- `ERROR` controls **count against** the score. A check that couldn't run is not evidence of compliance, and leaving it out would let permission gaps inflate the score.
+- Every control counts the same. Severity and the number of affected accounts don't change the score; they're there for prioritizing.
 
 The **Impact Level score** uses the same formula, limited to controls whose `min_impact_level` is at or below the target level.
 
 Thresholds on the dashboard: **≥ 85%** green, **70–84%** orange, **< 70%** red. These colors are just a visual cue and don't come from any NIST or DoD source.
+
+!!! tip "Fix ERROR rows first"
+    `ERROR` usually means AWS Config can't evaluate the rule (access denied, rule missing, throttling) or the resource sits in another account or region. Fixing those gaps often raises the score more than any single remediation. The reason is in the Security Hub finding's `Compliance.StatusReasons`.
 
 ## Titles
 

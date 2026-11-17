@@ -27,7 +27,7 @@ Each cloudcomply finding carries a suggested `rmf_step`:
 
 | Value | Meaning in cloudcomply |
 |---|---|
-| `Assess` | Automated checks are failing, so the control needs assessment and remediation (POA&M candidate) |
+| `Assess` | Automated checks are failing (POA&M candidate) or couldn't be evaluated (`ERROR`), so the control needs assessment |
 | `Monitor` | Automated checks pass, so the control stays under continuous monitoring |
 | `Implement` | (Demo data) the control appears not to be implemented at all |
 

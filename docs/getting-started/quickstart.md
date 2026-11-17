@@ -8,7 +8,7 @@ You don't need AWS credentials for this step.
 cloudcomply --demo
 ```
 
-The demo dataset is a fictional "Acme Federal Org" with 47 accounts and 27 findings across six control families (AC, AU, CM, IA, SC, SI). It scores about 41% compliant on purpose, so there's plenty to explore.
+The demo dataset is a fictional "Acme Federal Org" with 47 accounts and 27 findings across six control families (AC, AU, CM, IA, SC, SI). It scores 40% compliant on purpose, so there's plenty to explore.
 
 - Press `↓` then `Enter` to open **Browse Findings by Control Family**.
 - Press `←` / `→` (or `h` / `l`) to filter by control family.
@@ -39,7 +39,7 @@ A spinner appears while cloudcomply pages through Security Hub. Large organizati
 
 - **Organization**: your AWS Organization ID (`o-…`). Organizations has no display name, so this is the ID.
 - **Accounts in Org**: from `organizations:ListAccounts`.
-- **NIST 800-53**: percentage of controls with no failing findings.
+- **NIST 800-53**: percentage of scorable controls that pass (see [scoring](../concepts/scoring.md)).
 - **DoD SRG (IL5 Mission Owner)**: the same score limited to controls in scope at IL5.
 
 If the credentials aren't part of an AWS Organization, cloudcomply switches to **single-account mode** on its own and scores just that account.
