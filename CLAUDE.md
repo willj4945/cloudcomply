@@ -93,6 +93,7 @@ go mod tidy
 - No hardcoded AWS credentials anywhere — ever.
 - Error handling: explicit, not panic. If an AWS call fails, surface it in the TUI as a status message.
 - No comments explaining *what* code does. Only add a comment when the *why* is non-obvious.
+- Never put Claude session URLs or session IDs (`claude.ai/code/session_…`, `Claude-Session:` trailers) in commit messages, PR titles/bodies, comments, or any file. This is a public repo. A `Co-Authored-By: Claude …` trailer and a link to `https://claude.com/claude-code` are fine.
 
 ## What's Done
 
