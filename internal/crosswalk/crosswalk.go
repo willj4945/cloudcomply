@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"regexp"
 
-	"cloudcomply/internal/nist"
+	"github.com/willj4945/cloudcomply/internal/nist"
 )
 
 // Source records where a mapping comes from.

@@ -6,7 +6,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/securityhub/types"
 
-	"cloudcomply/internal/nist"
+	"github.com/willj4945/cloudcomply/internal/nist"
 )
 
 func finding(account, title string, relatedReqs []string, status types.ComplianceStatus, sev types.SeverityLabel) types.AwsSecurityFinding {
@@ -286,5 +286,28 @@ func TestRollUp_WarningIsErrorNotFailure(t *testing.T) {
 	got = rollUp(warn, finding("333333333333", "Alarms", []string{"NIST.800-53.r5 SI-4"}, types.ComplianceStatusFailed, types.SeverityLabelHigh))
 	if got[0].Status != nist.StatusFailed || got[0].AccountsAffected != 1 {
 		t.Errorf("with a real failure: SI-4 = %v / %d accounts; want FAILED / 1", got[0].Status, got[0].AccountsAffected)
+	}
+}
+
+func TestToCheckResult_StripsControlChars(t *testing.T) {
+	evil := "Bad\x1b]52;c;ZXZpbA==\x07Title\x1b[2J\n"
+	f := finding("111111111111", evil, []string{"NIST.800-53.r5 AC-2\x1b[31m"}, types.ComplianceStatusNotAvailable, types.SeverityLabelHigh)
+	f.Compliance.StatusReasons = []types.StatusReason{{
+		ReasonCode:  aws.String("CONFIG_ACCESS_DENIED"),
+		Description: aws.String("denied\x1b[2J"),
+	}}
+
+	r, ok := toCheckResult(f)
+	if !ok {
+		t.Fatal("toCheckResult returned ok=false")
+	}
+	if want := "Bad]52;c;ZXZpbA==Title[2J"; r.Title != want {
+		t.Errorf("Title = %q, want %q", r.Title, want)
+	}
+	if want := []string{"AC-2[31m"}; len(r.Controls) != 1 || r.Controls[0] != want[0] {
+		t.Errorf("Controls = %q, want %q", r.Controls, want)
+	}
+	if want := "CONFIG_ACCESS_DENIED: denied[2J"; r.Detail != want {
+		t.Errorf("Detail = %q, want %q", r.Detail, want)
 	}
 }

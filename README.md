@@ -1,160 +1,124 @@
 # cloudcomply
 
-A lightweight, interactive CLI/TUI for assessing AWS Organizations against NIST SP 800-53 controls. Designed to run directly in AWS CloudShell with zero installation — drop in a single static binary and go.
+[![CI](https://github.com/willj4945/cloudcomply/actions/workflows/ci.yml/badge.svg)](https://github.com/willj4945/cloudcomply/actions/workflows/ci.yml)
+[![Docs](https://github.com/willj4945/cloudcomply/actions/workflows/docs.yml/badge.svg)](https://willj4945.github.io/cloudcomply/)
+[![Go Reference](https://pkg.go.dev/badge/github.com/willj4945/cloudcomply.svg)](https://pkg.go.dev/github.com/willj4945/cloudcomply)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go&logoColor=white)
-![License](https://img.shields.io/badge/license-MIT-blue)
+**Assess an AWS Organization against NIST SP 800-53 Rev. 5 from a single static binary.** It runs in AWS CloudShell with nothing to install.
 
----
+cloudcomply aggregates the NIST 800-53 findings AWS Security Hub already evaluates into one result per control across every account, scores them, and lets you slice them by control family and DoD Cloud Computing SRG Impact Level. You can use the interactive terminal dashboard or the headless JSON report for CI and ATO evidence.
 
-## Features
-
-- **Org-wide visibility** — enumerate all accounts and OUs across an AWS Organization
-- **NIST 800-53 compliance scoring** — aggregated findings from AWS Security Hub mapped to control families (AC, AU, CM, IA, SC, SI, and more)
-- **Interactive findings browser** — filter by control family, see pass/fail status, severity, and accounts affected
-- **RMF alignment** — findings tagged to the relevant RMF step (Categorize, Select, Implement, Assess, Authorize, Monitor)
-- **DoD Cloud Computing SRG Impact Level filtering** — filter findings and view a compliance score scoped to the minimum DoD CC SRG Impact Level (IL2/IL4/IL5/IL6) a Mission Owner (MO) is targeting
-- **Threat modeling** — guided wizard to generate STRIDE-based threat models for AWS workloads *(coming soon)*
-- **Best practices report** — custom checks beyond Security Hub standards *(coming soon)*
-- **Export-ready** — Markdown and JSON output suitable for ATO evidence packages *(coming soon)*
-- **Demo mode** — realistic fake data for offline use, demos, and portfolio showcases
+📖 **Documentation: <https://willj4945.github.io/cloudcomply/>**
 
 ---
 
-## Quick Start
+## Highlights
 
-### Run in AWS CloudShell (recommended)
+- **Org-wide NIST 800-53 score**: one row per control (FAILED if any account fails it), with severity and number of accounts affected
+- **Interactive dashboard**: keyboard-only TUI with family (AC, AU, CM, IA, SC, SI) and Impact Level (IL2/4/5/6) filters
+- **Headless reports**: `report nist --format json` with a stable schema for `jq`, CI gates and evidence trails
+- **Single-account fallback**: works in a standalone account while org-wide access is still pending
+- **Demo mode**: `--demo` runs everything offline with realistic sample data
+- **Small, read-only footprint**: one static binary with no CGO, no agents, no config files and no telemetry. It only calls `Get`, `List` and `Describe` APIs.
+- **Verifiable releases**: cosign-signed checksums and a CycloneDX SBOM for every binary
 
-Download the latest static Linux binary from [Releases](../../releases) and run it directly — no Go installation needed:
+## Quick start
+
+Try it offline:
 
 ```bash
-curl -LO https://github.com/willj4945/cloudcomply/releases/latest/download/cloudcomply-linux-amd64
-chmod +x cloudcomply-linux-amd64
-./cloudcomply-linux-amd64
+go install github.com/willj4945/cloudcomply@latest
+cloudcomply --demo
 ```
 
-### Build from source
-
-Requires Go 1.21+.
+Run it live in **AWS CloudShell** from your Security Hub delegated admin account:
 
 ```bash
-git clone https://github.com/willj4945/cloudcomply.git
-cd cloudcomply
-go build -ldflags="-s -w" -o cloudcomply .
+VERSION=v0.1.0   # latest tag from https://github.com/willj4945/cloudcomply/releases
+curl -fsSLO "https://github.com/willj4945/cloudcomply/releases/download/${VERSION}/cloudcomply_${VERSION#v}_linux_amd64.tar.gz"
+curl -fsSLO "https://github.com/willj4945/cloudcomply/releases/download/${VERSION}/checksums.txt"
+sha256sum --check --ignore-missing checksums.txt
+tar -xzf "cloudcomply_${VERSION#v}_linux_amd64.tar.gz" cloudcomply
 ./cloudcomply
 ```
 
-### Cross-compile a static binary for CloudShell
+Generate a report for scripts or CI:
 
 ```bash
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o cloudcomply-linux-amd64 .
+cloudcomply report nist                                   # table
+cloudcomply report nist --format json | jq '[.[] | select(.status=="FAILED")]'
 ```
 
-See [CLI.md](CLI.md) for the full command reference, including headless `report nist` usage for CI/scripting.
+For other platforms, signature verification and building from source, see **[Installation](https://willj4945.github.io/cloudcomply/getting-started/installation/)**.
 
----
+## Requirements
 
-## Navigation
-
-| Key | Action |
-|-----|--------|
-| `↑` / `k` | Move up |
-| `↓` / `j` | Move down |
-| `←` / `h` | Previous control family filter |
-| `→` / `l` | Next control family filter |
-| `[` | Previous DoD SRG impact level filter |
-| `]` | Next DoD SRG impact level filter |
-| `Enter` | Select / open |
-| `Esc` / `q` | Back / quit |
-| `Ctrl+C` | Force quit |
-
----
-
-## AWS Permissions
-
-The tool requires read-only access. Run from a role in your Security Hub delegated admin account with at minimum:
+- AWS Security Hub enabled, with the **NIST SP 800-53 Rev. 5** standard turned on ([prerequisites](https://willj4945.github.io/cloudcomply/aws/prerequisites/))
+- Credentials from the standard AWS credential chain (CloudShell, SSO, profile, role or OIDC) and a region set
+- A read-only IAM policy:
 
 ```json
 {
   "Version": "2012-10-17",
   "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "securityhub:GetFindings",
-        "securityhub:GetFindingStatistics",
-        "securityhub:ListFindingAggregators",
-        "organizations:ListAccounts",
-        "organizations:ListOrganizationalUnitsForParent",
-        "organizations:DescribeOrganization",
-        "sts:GetCallerIdentity"
-      ],
-      "Resource": "*"
-    }
+    { "Effect": "Allow", "Action": "securityhub:GetFindings", "Resource": "*" },
+    { "Effect": "Allow", "Action": ["organizations:DescribeOrganization", "organizations:ListAccounts"], "Resource": "*" }
   ]
 }
 ```
 
-For cross-account checks: add `sts:AssumeRole` and a trust policy in member accounts.
+See [IAM permissions](https://willj4945.github.io/cloudcomply/aws/permissions/) for the reason behind each action and for the managed-policy alternative.
 
----
+## Documentation
 
-## Project Status
+| | |
+|---|---|
+| [Installation](https://willj4945.github.io/cloudcomply/getting-started/installation/) | Release binaries, `go install`, source builds, shell completion |
+| [Quick start](https://willj4945.github.io/cloudcomply/getting-started/quickstart/) | Demo mode, CloudShell, workstation setup |
+| [Dashboard (TUI)](https://willj4945.github.io/cloudcomply/usage/tui/) | Screens, filters, keybindings |
+| [Command reference](https://willj4945.github.io/cloudcomply/usage/cli/) | Commands, flags, exit codes, environment variables |
+| [JSON schema](https://willj4945.github.io/cloudcomply/usage/json-schema/) | Output contract and `jq` recipes |
+| [CI/CD and automation](https://willj4945.github.io/cloudcomply/usage/automation/) | GitHub Actions with OIDC, GitLab, compliance gates |
+| [How scoring works](https://willj4945.github.io/cloudcomply/concepts/scoring/) | Aggregation rules and what the score does and doesn't mean |
+| [Security model](https://willj4945.github.io/cloudcomply/security/) | Data handling, supply chain, verifying releases |
+| [Troubleshooting](https://willj4945.github.io/cloudcomply/troubleshooting/) | Common errors and fixes |
+
+## Keybindings
+
+| Key | Action |
+|-----|--------|
+| `↑`/`k`, `↓`/`j` | Move |
+| `←`/`h`, `→`/`l` | Previous / next control family filter |
+| `[`, `]` | Previous / next DoD SRG Impact Level filter |
+| `Enter` | Select |
+| `Esc` / `q` | Back (findings) / quit (dashboard) |
+| `Ctrl+C` | Quit |
+
+## Project status
+
+cloudcomply is **pre-1.0**. These parts work today:
 
 | Feature | Status |
 |---------|--------|
-| Dashboard + NIST compliance score | ✅ Done |
-| Findings browser (with family filter) | ✅ Done |
-| Demo mode (realistic fake data) | ✅ Done |
-| Cobra CLI command structure | ✅ Done |
-| Live Security Hub integration | 🔲 Planned |
-| Threat modeling wizard | 🔲 Planned |
-| Best practices custom checks | 🔲 Planned |
-| Markdown / JSON report export | 🔲 Planned |
+| Dashboard + NIST 800-53 compliance score | ✅ |
+| Findings browser with family and Impact Level filters | ✅ |
+| Live Security Hub + Organizations integration | ✅ |
+| Headless `report nist --format table\|json` | ✅ |
+| Demo mode | ✅ |
+| NIST → DoD SRG Impact Level crosswalk for live data | 🔲 Planned (live findings currently report `IL2`) |
+| Finding detail pane, Markdown/HTML export | 🔲 Planned |
+| Scheduled runs, S3 history and drift detection | 🔲 Planned |
+| Native Bedrock / SageMaker AI workload checks | 🔲 Planned |
 
----
+See the full [roadmap](https://willj4945.github.io/cloudcomply/project/roadmap/).
 
-## Tech Stack
+> **Note:** cloudcomply reports on Security Hub's *automated* checks. It's continuous-monitoring evidence that supports an assessment, not a substitute for one. See [what the score is not](https://willj4945.github.io/cloudcomply/concepts/scoring/#what-this-score-is-not).
 
-- [Bubble Tea](https://github.com/charmbracelet/bubbletea) — TUI framework
-- [Bubbles](https://github.com/charmbracelet/bubbles) — table, spinner, and other TUI components
-- [Lip Gloss](https://github.com/charmbracelet/lipgloss) — terminal styling
-- [AWS SDK for Go v2](https://github.com/aws/aws-sdk-go-v2) — AWS API client *(planned)*
-- [Cobra](https://github.com/spf13/cobra) — CLI command structure *(planned)*
+## Contributing
 
----
-
-## NIST / RMF Mapping
-
-Findings are mapped to NIST SP 800-53 Rev. 5 control families and tagged to the relevant RMF step, making them directly usable as evidence in an ATO package.
-
-| Control Family | Coverage |
-|----------------|----------|
-| AC — Access Control | ✅ |
-| AU — Audit and Accountability | ✅ |
-| CM — Configuration Management | ✅ |
-| IA — Identification and Authentication | ✅ |
-| SC — System and Communications Protection | ✅ |
-| SI — System and Information Integrity | ✅ |
-| Additional families | Planned |
-
----
-
-## DoD Cloud Computing SRG Impact Levels
-
-Each finding is tagged with the lowest [DoD Cloud Computing Security Requirements Guide (SRG)](https://public.cyber.mil/dccs/) Impact Level at which it's required, so a Mission Owner (MO) can score compliance against the specific IL they're targeting rather than the full control catalog. Levels are cumulative — a control required at IL2 is also in scope at IL4/IL5/IL6.
-
-| Impact Level | Typical Data Sensitivity |
-|--------------|--------------------------|
-| IL2 | Non-controlled unclassified information (public/low-sensitivity) |
-| IL4 | Controlled Unclassified Information (CUI) |
-| IL5 | Higher-sensitivity CUI and National Security Systems |
-| IL6 | Classified information up to SECRET |
-
-The dashboard shows a compliance score scoped to a target Impact Level, and the findings browser lets you filter to only the controls in scope for that level (`[` / `]` to cycle levels).
-
----
+Issues and PRs are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md). To report a security vulnerability, follow [SECURITY.md](SECURITY.md) and **don't** open a public issue.
 
 ## License
 
-MIT
+[MIT](LICENSE)

@@ -9,7 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"cloudcomply/internal/nist"
+	"github.com/willj4945/cloudcomply/internal/nist"
 )
 
 type view int
@@ -164,7 +164,10 @@ func (m model) updateDashboard(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) handleMenuSelection() (tea.Model, tea.Cmd) {
 	switch m.selected {
 	case 0:
-		m.message = "Scan complete (demo mode). Results loaded below."
+		m.loading = true
+		m.loadErr = nil
+		m.message = ""
+		return m, tea.Batch(m.spinner.Tick, fetchCmd(m.fetch))
 	case 1:
 		m.currentView = viewFindings
 		m.message = ""

@@ -1,0 +1,20 @@
+name: Feature request
+description: Suggest a new control mapping, report format or capability
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / use case
+      description: What are you trying to accomplish (e.g. ATO evidence, ConMon, CI gate)?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+  - type: textarea
+    id: frameworks
+    attributes:
+      label: Related controls or frameworks
+      description: e.g. NIST 800-53 AU-12, DoD SRG IL5, FedRAMP Moderate

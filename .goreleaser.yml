@@ -2,7 +2,7 @@ version: 2
 
 before:
   hooks:
-    - go mod tidy
+    - go mod verify
 
 builds:
   - env:
@@ -44,7 +44,7 @@ sboms:
     args: ["$artifact", "--output", "cyclonedx-json=$document"]
 
 # Sign checksums file and SBOMs with cosign (keyless — no key management needed)
-# Verification: cosign verify-blob --certificate-identity-regexp '.*' --certificate-oidc-issuer https://token.actions.githubusercontent.com <file>
+# Verification steps (pinned to this repo's release workflow identity): see SECURITY.md
 signs:
   - cmd: cosign
     artifacts: checksum

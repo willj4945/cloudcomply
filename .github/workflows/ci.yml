@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: read
-  security-events: write  # for uploading SARIF results
 
 jobs:
   # ── Secrets ─────────────────────────────────────────────────────────────────
@@ -41,6 +40,9 @@ jobs:
   sast:
     name: SAST (gosec)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write  # upload SARIF to the Security tab
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -48,7 +50,7 @@ jobs:
           go-version: "1.26"
           cache: true
       - name: Run gosec
-        uses: securego/gosec@master
+        uses: securego/gosec@5eb1d104ef85ff2c905c877eb600e8c1dee33a22  # v2.30.0
         with:
           args: -fmt sarif -out gosec-results.sarif ./...
       - name: Upload SARIF to GitHub Security tab
@@ -74,11 +76,28 @@ jobs:
       - name: Run govulncheck
         run: govulncheck ./...
 
+  # ── Test ────────────────────────────────────────────────────────────────────
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.26"
+          cache: true
+      - name: Verify go.mod / go.sum are tidy
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+      - name: Run tests
+        run: go test -race ./...
+
   # ── Build ────────────────────────────────────────────────────────────────────
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [secrets, lint, sast, sca]
+    needs: [secrets, lint, sast, sca, test]
     strategy:
       matrix:
         include:

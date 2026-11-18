@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"cloudcomply/internal/awsclient"
-	"cloudcomply/internal/nist"
-	"cloudcomply/internal/tui"
+	"github.com/willj4945/cloudcomply/internal/awsclient"
+	"github.com/willj4945/cloudcomply/internal/nist"
+	"github.com/willj4945/cloudcomply/internal/tui"
 )
 
 // fetchTimeout bounds how long headless `report nist` waits on a live AWS

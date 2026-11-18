@@ -1,0 +1,80 @@
+site_name: cloudcomply
+site_description: Assess AWS Organizations against NIST SP 800-53 / RMF and DoD Cloud Computing SRG Impact Levels from a single static binary.
+site_url: https://willj4945.github.io/cloudcomply/
+repo_url: https://github.com/willj4945/cloudcomply
+repo_name: willj4945/cloudcomply
+edit_uri: edit/main/docs/
+copyright: cloudcomply is released under the MIT License.
+
+# Internal design plans live in docs/ but are not part of the user-facing site.
+exclude_docs: |
+  ai-controls/
+  requirements.txt
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - content.code.copy
+    - content.action.edit
+    - search.suggest
+    - search.highlight
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Installation: getting-started/installation.md
+      - Quick start: getting-started/quickstart.md
+  - Usage:
+      - Interactive dashboard (TUI): usage/tui.md
+      - Command reference: usage/cli.md
+      - JSON output schema: usage/json-schema.md
+      - CI/CD and automation: usage/automation.md
+  - AWS setup:
+      - Prerequisites: aws/prerequisites.md
+      - IAM permissions: aws/permissions.md
+  - Concepts:
+      - How findings are scored: concepts/scoring.md
+      - NIST 800-53 and RMF: concepts/nist-rmf.md
+      - DoD SRG Impact Levels: concepts/impact-levels.md
+  - Security:
+      - Security model: security.md
+      - Verifying releases: verifying-releases.md
+  - Troubleshooting: troubleshooting.md
+  - Project:
+      - Roadmap: project/roadmap.md
+      - Contributing: project/contributing.md

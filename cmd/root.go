@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"cloudcomply/internal/tui"
+	"github.com/willj4945/cloudcomply/internal/tui"
 )
 
 // demoMode is a persistent flag shared by the TUI and `report nist` — see
