@@ -6,7 +6,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.48.0
 	github.com/aws/aws-sdk-go-v2/config v1.33.18
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.63.0
-	github.com/aws/aws-sdk-go-v2/service/securityhub v1.71.9
+	github.com/aws/aws-sdk-go-v2/service/securityhub v1.87.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.52.0
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
