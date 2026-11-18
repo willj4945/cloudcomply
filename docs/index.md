@@ -13,6 +13,9 @@ cloudcomply                            # live dashboard
 cloudcomply report nist --format json  # for automation
 ```
 
+![cloudcomply dashboard running with demo data](assets/dashboard.png){ width="460" }
+![cloudcomply findings browser running with demo data](assets/findings.png){ width="460" }
+
 <div class="grid cards" markdown>
 
 - **[Install](getting-started/installation.md)**: download a signed release, `go install`, or build from source.
