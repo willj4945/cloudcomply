@@ -11,11 +11,18 @@ cloudcomply aggregates the NIST 800-53 findings AWS Security Hub already evaluat
 
 📖 **Documentation: <https://willj4945.github.io/cloudcomply/>**
 
+<p align="center">
+  <img src="docs/assets/dashboard.png" alt="cloudcomply dashboard showing organization summary, 40% NIST 800-53 compliance and 42% IL5 readiness (demo data)" width="420">
+  <img src="docs/assets/findings.png" alt="cloudcomply findings browser: per-control table with status, severity, accounts affected, RMF step and minimum Impact Level (demo data)" width="420">
+</p>
+<p align="center"><sub>Dashboard and findings browser running with <code>--demo</code> data.</sub></p>
+
 ---
 
 ## Highlights
 
-- **Org-wide NIST 800-53 score**: one row per control (FAILED if any account fails it), with severity and number of accounts affected
+- **Org-wide NIST 800-53 score**: one row per control across every account, with status, severity and number of accounts affected
+- **Honest statuses**: `PASSED`, `FAILED`, `ERROR` (Security Hub couldn't evaluate the check) and `NOT_APPLICABLE`. Errors count against the score, so permission gaps can't inflate it.
 - **Interactive dashboard**: keyboard-only TUI with family (AC, AU, CM, IA, SC, SI) and Impact Level (IL2/4/5/6) filters
 - **Headless reports**: `report nist --format json` with a stable schema for `jq`, CI gates and evidence trails
 - **Single-account fallback**: works in a standalone account while org-wide access is still pending
@@ -32,7 +39,7 @@ go install github.com/willj4945/cloudcomply@latest
 cloudcomply --demo
 ```
 
-Run it live in **AWS CloudShell** from your Security Hub delegated admin account:
+Run it live in **AWS CloudShell** from your Security Hub delegated admin account. Download a release binary (no Go needed):
 
 ```bash
 VERSION=v0.1.0   # latest tag from https://github.com/willj4945/cloudcomply/releases
@@ -45,12 +52,21 @@ tar -xzf "cloudcomply_${VERSION#v}_linux_amd64.tar.gz" cloudcomply
 
 Generate a report for scripts or CI:
 
-```bash
-cloudcomply report nist                                   # table
-cloudcomply report nist --format json | jq '[.[] | select(.status=="FAILED")]'
+```console
+$ cloudcomply report nist --demo
+CONTROL   TITLE                              STATUS  SEVERITY  ACCOUNTS  RMF_STEP   MIN_IL
+AC-2      Account Management                 FAILED  HIGH      12        Assess     IL2
+AC-2(1)   Auto Temp/Emergency Accounts       PASSED  LOW       0         Monitor    IL4
+AC-3      Access Enforcement                 PASSED  MEDIUM    0         Monitor    IL2
+...
+
+$ cloudcomply report nist --demo --format json | jq '[.[] | select(.status=="FAILED")] | length'
+16
 ```
 
-For other platforms, signature verification and building from source, see **[Installation](https://willj4945.github.io/cloudcomply/getting-started/installation/)**.
+> No release has been tagged yet. Until the first one is published, use `go install` or [build from source](https://willj4945.github.io/cloudcomply/getting-started/installation/#build-from-source).
+
+For other platforms, signature verification and shell completion, see **[Installation](https://willj4945.github.io/cloudcomply/getting-started/installation/)**.
 
 ## Requirements
 
