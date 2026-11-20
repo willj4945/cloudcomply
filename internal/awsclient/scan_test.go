@@ -16,7 +16,7 @@ import (
 	orgtypes "github.com/aws/aws-sdk-go-v2/service/organizations/types"
 	"github.com/aws/smithy-go"
 
-	"cloudcomply/internal/nist"
+	"github.com/willj4945/cloudcomply/internal/nist"
 )
 
 const homeARN = "arn:aws-us-gov:sts::111111111111:assumed-role/SecurityAudit/operator"

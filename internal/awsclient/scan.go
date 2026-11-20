@@ -17,7 +17,7 @@ import (
 	orgtypes "github.com/aws/aws-sdk-go-v2/service/organizations/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 
-	"cloudcomply/internal/nist"
+	"github.com/willj4945/cloudcomply/internal/nist"
 )
 
 const (

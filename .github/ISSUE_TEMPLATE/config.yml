@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/willj4945/cloudcomply/security/advisories/new
+    about: Please report vulnerabilities privately, not as public issues.
+  - name: Documentation
+    url: https://willj4945.github.io/cloudcomply/
+    about: Installation, commands, IAM permissions and troubleshooting.

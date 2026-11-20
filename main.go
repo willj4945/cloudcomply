@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"cloudcomply/cmd"
+	"github.com/willj4945/cloudcomply/cmd"
 )
 
 var (

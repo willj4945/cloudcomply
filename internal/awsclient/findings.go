@@ -4,12 +4,13 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"unicode"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/securityhub"
 	"github.com/aws/aws-sdk-go-v2/service/securityhub/types"
 
-	"cloudcomply/internal/nist"
+	"github.com/willj4945/cloudcomply/internal/nist"
 )
 
 // nistStandardFilter is the resource portion of the NIST SP 800-53 Rev 5
@@ -105,18 +106,18 @@ func toCheckResult(f types.AwsSecurityFinding) (nist.CheckResult, bool) {
 		return nist.CheckResult{}, false
 	}
 	return nist.CheckResult{
-		CheckID: aws.ToString(f.Compliance.SecurityControlId),
+		CheckID: sanitizeText(aws.ToString(f.Compliance.SecurityControlId)),
 		// Best-effort: Security Hub's per-security-control title, not an
 		// official NIST 800-53 control title (no such lookup exists via
 		// this API). TODO(nistmap): replace with a real control-title
 		// lookup alongside the DoD SRG impact-level crosswalk.
-		Title:    aws.ToString(f.Title),
+		Title:    sanitizeText(aws.ToString(f.Title)),
 		Controls: controls,
 		Status:   status,
 		Severity: mapSeverity(f.Severity),
 		Account:  aws.ToString(f.AwsAccountId),
 		Region:   aws.ToString(f.Region),
-		Detail:   statusReasonDetail(f.Compliance),
+		Detail:   sanitizeText(statusReasonDetail(f.Compliance)),
 		// MinImpactLevel left empty: AWS has no concept of DoD SRG impact
 		// levels, so RollUp applies its IL2 placeholder. TODO(nistmap).
 	}, true
@@ -171,7 +172,7 @@ func parseNISTControlIDs(c *types.Compliance) []string {
 		if !strings.HasPrefix(req, nistControlPrefix) {
 			continue
 		}
-		id := strings.TrimSpace(strings.TrimPrefix(req, nistControlPrefix))
+		id := strings.TrimSpace(sanitizeText(strings.TrimPrefix(req, nistControlPrefix)))
 		if strings.Index(id, "-") <= 0 || seen[id] {
 			continue
 		}
@@ -189,4 +190,17 @@ func mapSeverity(s *types.Severity) nist.Severity {
 		return sev
 	}
 	return nist.SeverityLow
+}
+
+// sanitizeText drops control characters from text that reaches the terminal.
+// Finding fields can be written by any product integrated with Security Hub
+// (BatchImportFindings), so an embedded ANSI/OSC escape sequence would
+// otherwise be interpreted by the user's terminal in table and TUI output.
+func sanitizeText(s string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, s)
 }

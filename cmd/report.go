@@ -3,7 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"cloudcomply/internal/report"
+	"github.com/willj4945/cloudcomply/internal/report"
 )
 
 var reportFormat string
@@ -17,6 +17,9 @@ var reportNistCmd = &cobra.Command{
 	Use:   "nist",
 	Short: "Generate a NIST SP 800-53 findings report",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := report.ValidateFormat(reportFormat); err != nil {
+			return err
+		}
 		findings, _, err := newFetcher(demoMode)(cmd.Context())
 		if err != nil {
 			return err

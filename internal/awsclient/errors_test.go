@@ -9,8 +9,8 @@ import (
 
 	"github.com/aws/smithy-go"
 
-	"cloudcomply/internal/crosswalk"
-	"cloudcomply/internal/nist"
+	"github.com/willj4945/cloudcomply/internal/crosswalk"
+	"github.com/willj4945/cloudcomply/internal/nist"
 )
 
 func TestClassifyError(t *testing.T) {

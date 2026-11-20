@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"cloudcomply/internal/nist"
+	"github.com/willj4945/cloudcomply/internal/nist"
 )
 
 func TestAllMappingsValid(t *testing.T) {

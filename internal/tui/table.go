@@ -6,7 +6,7 @@ import (
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/lipgloss"
 
-	"cloudcomply/internal/nist"
+	"github.com/willj4945/cloudcomply/internal/nist"
 )
 
 // filterFindings is shared by buildTable and the findings view's tally so
