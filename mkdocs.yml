@@ -59,6 +59,7 @@ nav:
   - Getting started:
       - Installation: getting-started/installation.md
       - Quick start: getting-started/quickstart.md
+      - Prove it works (sandbox org): getting-started/prove-it-works.md
   - Usage:
       - Interactive dashboard (TUI): usage/tui.md
       - Command reference: usage/cli.md

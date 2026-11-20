@@ -92,6 +92,7 @@ See [IAM permissions](https://willj4945.github.io/cloudcomply/aws/permissions/) 
 |---|---|
 | [Installation](https://willj4945.github.io/cloudcomply/getting-started/installation/) | Release binaries, `go install`, source builds, shell completion |
 | [Quick start](https://willj4945.github.io/cloudcomply/getting-started/quickstart/) | Demo mode, CloudShell, workstation setup |
+| [Prove it works](https://willj4945.github.io/cloudcomply/getting-started/prove-it-works/) | Sandbox-org walkthrough that verifies results against raw Security Hub data |
 | [Dashboard (TUI)](https://willj4945.github.io/cloudcomply/usage/tui/) | Screens, filters, keybindings |
 | [Command reference](https://willj4945.github.io/cloudcomply/usage/cli/) | Commands, flags, exit codes, environment variables |
 | [JSON schema](https://willj4945.github.io/cloudcomply/usage/json-schema/) | Output contract and `jq` recipes |

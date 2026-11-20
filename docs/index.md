@@ -20,6 +20,7 @@ cloudcomply report nist --format json  # for automation
 
 - **[Install](getting-started/installation.md)**: download a signed release, `go install`, or build from source.
 - **[Quick start](getting-started/quickstart.md)**: run it in AWS CloudShell in under two minutes.
+- **[Prove it works](getting-started/prove-it-works.md)**: verify cloudcomply against a near-$0 sandbox org, with an independent recount of its results.
 - **[Command reference](usage/cli.md)**: every command, flag and exit code.
 - **[IAM permissions](aws/permissions.md)**: the minimal read-only policy.
 

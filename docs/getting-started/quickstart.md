@@ -70,6 +70,7 @@ cloudcomply report nist --format json > reports/nist-$(date +%F).json
 
 ## Next steps
 
+- [Prove it works in a sandbox org](prove-it-works.md)
 - [Command reference](../usage/cli.md)
 - [Gate a CI pipeline on failed controls](../usage/automation.md)
 - [Understand how the score is calculated](../concepts/scoring.md)
