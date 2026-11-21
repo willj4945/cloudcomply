@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"context"
-
 	"github.com/spf13/cobra"
 
 	"github.com/willj4945/cloudcomply/internal/report"
@@ -22,9 +20,7 @@ var reportNistCmd = &cobra.Command{
 		if err := report.ValidateFormat(reportFormat); err != nil {
 			return err
 		}
-		ctx, cancel := context.WithTimeout(cmd.Context(), fetchTimeout)
-		defer cancel()
-		findings, _, err := newFetcher(demoMode)(ctx)
+		findings, _, err := newFetcher(demoMode)(cmd.Context())
 		if err != nil {
 			return err
 		}

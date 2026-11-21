@@ -131,8 +131,11 @@ organizations:ListAccounts
 organizations:ListOrganizationalUnitsForParent
 organizations:DescribeOrganization
 sts:GetCallerIdentity
-sts:AssumeRole  (if using cross-account checks)
+sts:AssumeRole       (cross-account native checks: on role/cloudcomply-assessor)
+account:ListRegions  (native checks: enabled-region discovery in the caller's own account)
 ```
+
+Native checks assume the read-only `cloudcomply-assessor` role in every other account; its template, StackSet deployment and the caller policy are in [deploy/README.md](deploy/README.md). Any check that calls a new AWS action must add that action to `deploy/cloudformation/assessor-role.yaml` in the same change.
 
 ## Important Constraints
 

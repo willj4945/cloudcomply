@@ -2,7 +2,6 @@ package tui
 
 import (
 	"context"
-	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/table"
@@ -23,8 +22,6 @@ const (
 // live AWS call, the tui package doesn't need to know which.
 type FindingsFetcher func(ctx context.Context) ([]nist.Finding, nist.OrgSummary, error)
 
-const fetchTimeout = 30 * time.Second
-
 // findingsMsg carries the result of an async FindingsFetcher call back into
 // the Bubble Tea update loop.
 type findingsMsg struct {
@@ -35,9 +32,7 @@ type findingsMsg struct {
 
 func fetchCmd(fetch FindingsFetcher) tea.Cmd {
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), fetchTimeout)
-		defer cancel()
-		findings, org, err := fetch(ctx)
+		findings, org, err := fetch(context.Background())
 		return findingsMsg{findings: findings, org: org, err: err}
 	}
 }

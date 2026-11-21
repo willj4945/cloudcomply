@@ -84,6 +84,8 @@ For other platforms, signature verification and shell completion, see **[Install
 }
 ```
 
+For cross-account checks, deploy the read-only `cloudcomply-assessor` role to member accounts and grant the caller `sts:AssumeRole` on it. The template, StackSet commands and caller policy are in [deploy/README.md](deploy/README.md).
+
 See [IAM permissions](https://willj4945.github.io/cloudcomply/aws/permissions/) for the reason behind each action and for the managed-policy alternative.
 
 ## Documentation

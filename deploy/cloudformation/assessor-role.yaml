@@ -1,0 +1,68 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  cloudcomply-assessor: read-only role that cloudcomply assumes in each
+  account it scans. Deploy to member accounts with a service-managed
+  StackSet, and to the management account with a regular stack
+  (service-managed StackSets never deploy to the management account).
+  See deploy/README.md.
+
+Parameters:
+  AssessorAccountId:
+    Type: String
+    AllowedPattern: "^\\d{12}$"
+    ConstraintDescription: must be a 12-digit AWS account ID
+    Description: >-
+      Account cloudcomply runs from (normally the Security Hub delegated
+      administrator). Only this account is trusted.
+  AssessorPrincipalArn:
+    Type: String
+    Default: ""
+    Description: >-
+      Recommended. ARN of the one IAM role in the assessor account allowed to
+      assume this role, e.g. arn:aws:iam::123456789012:role/SecurityAudit.
+      Empty trusts any principal in the assessor account that its own IAM
+      policy allows to call sts:AssumeRole on this role.
+  RoleName:
+    Type: String
+    Default: cloudcomply-assessor
+    Description: Must match cloudcomply's --assume-role-name (default cloudcomply-assessor).
+
+Conditions:
+  RestrictPrincipal: !Not [!Equals [!Ref AssessorPrincipalArn, ""]]
+
+Resources:
+  AssessorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref RoleName
+      Description: Read-only role assumed by cloudcomply for compliance assessment. Grants no write access.
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub "arn:${AWS::Partition}:iam::${AssessorAccountId}:root"
+            Action: sts:AssumeRole
+            Condition: !If
+              - RestrictPrincipal
+              - ArnEquals:
+                  aws:PrincipalArn: !Ref AssessorPrincipalArn
+              - !Ref AWS::NoValue
+      # Exactly the read-only actions cloudcomply's checks call, and nothing
+      # more. Each check phase in docs/ai-controls/plan.md adds its actions
+      # here alongside the check.
+      Policies:
+        - PolicyName: cloudcomply-assessor-read-only
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: RegionDiscovery
+                Effect: Allow
+                Action: account:ListRegions
+                Resource: "*"
+
+Outputs:
+  RoleArn:
+    Description: ARN of the assessor role in this account
+    Value: !GetAtt AssessorRole.Arn
