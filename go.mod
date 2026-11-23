@@ -8,7 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.21.0
 	github.com/aws/aws-sdk-go-v2/service/account v1.42.11
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.63.0
-	github.com/aws/aws-sdk-go-v2/service/securityhub v1.87.0
+	github.com/aws/aws-sdk-go-v2/service/securityhub v1.88.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.52.0
 	github.com/aws/smithy-go v1.28.9
 	github.com/charmbracelet/bubbles v1.0.0
