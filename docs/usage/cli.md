@@ -12,12 +12,15 @@ cloudcomply --version | --help
 | Flag | Default | Description |
 |---|---|---|
 | `--demo` | `false` | Use the built-in sample dataset instead of calling AWS. Works on every command. |
+| `--native-checks` | `false` | Also run cloudcomply's own AI workload checks in every account and region. Results roll up into the same NIST control rows as Security Hub findings. Needs the [assessor role](../aws/permissions.md#cross-account-native-checks) in member accounts. Ignored with `--demo`. |
+| `--assume-role-name` | `cloudcomply-assessor` | Role that native checks assume in each member account |
+| `--regions` | each account's enabled regions | Comma-separated regions for native checks, e.g. `us-gov-west-1` or `us-east-1,us-west-2`. Validated before any AWS call. |
 | `-h`, `--help` | | Help for any command, e.g. `cloudcomply report nist --help` |
 | `-v`, `--version` | | Print version, commit and build date |
 
 ## `cloudcomply`
 
-Launches the [interactive dashboard](tui.md). Findings load in the background, with a 30-second timeout.
+Launches the [interactive dashboard](tui.md). Findings load in the background. The Security Hub fetch has a 30-second timeout. With `--native-checks`, each native-check call has its own 60-second timeout instead of one overall limit, because a large organization legitimately takes longer to scan.
 
 ## `cloudcomply report nist`
 
@@ -97,4 +100,6 @@ For GovCloud, set `AWS_REGION=us-gov-west-1` or `us-gov-east-1`. The SDK resolve
 
 ## Timeouts
 
-Both the TUI and `report nist` stop waiting after **30 seconds** of AWS calls. That is enough for typical organizations. If you hit it, see [Troubleshooting](../troubleshooting.md#timeouts).
+Both the TUI and `report nist` stop waiting for Security Hub and Organizations after **30 seconds**. That is enough for typical organizations. If you hit it, see [Troubleshooting](../troubleshooting.md#timeouts).
+
+With `--native-checks`, every individual native-check call is bounded at **60 seconds** (assuming the role, discovering regions, and each check in each account and region). At most 8 run at once. There's no overall limit, because scan time grows with accounts × regions. A call that times out becomes an `ERROR` result for that account and region only; the rest of the scan still reports.

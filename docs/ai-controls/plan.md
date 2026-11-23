@@ -8,9 +8,9 @@ NIST AI RMF 1.0, and the OWASP LLM Top 10.
 > the plan where it conflicts with reality, then proceed phase by phase. Do not let it
 > implement all three controls in one pass.
 
-> **Status:** Phase 0 complete — see [phase0-recon.md](phase0-recon.md). Phase 1a merged;
-> Phase 1b implemented (in review). D1–D3 decided; D4–D6 open — see
-> [Open decisions](#open-decisions). Next up: Phase 2 (AU-12), blocked on D4 for checks 01/02.
+> **Status:** Phases 0, 1a and 1b done (1a: #16, 1b: #25). Phase 2 in progress: AI-AU-12-01/02
+> implemented (in review); 03 next (needs `--impact-level`); 04 blocked on D5. D1–D4 decided;
+> D5–D6 open — see [Open decisions](#open-decisions).
 
 ---
 
@@ -115,7 +115,7 @@ Original scope:
   additive, the `status` enum only grows. The schema isn't locked yet (CLAUDE.md roadmap item 6),
   so this is the cheapest time to make the change.
 
-### 1b. Execution layer — implemented
+### 1b. Execution layer — merged (#25)
 
 As built (`internal/awsclient/scan.go`, `errors.go`; `deploy/`):
 
@@ -214,17 +214,42 @@ is the detection prerequisite for most LLM incident response.
 | AI-AU-12-03 | Log destination encrypted | `s3:GetBucketEncryption` or `logs:DescribeLogGroups` | KMS CMK, not SSE-S3 default, for IL4+ |
 | AI-AU-12-04 | Retention meets baseline | `s3:GetBucketLifecycleConfiguration` / `logs:DescribeLogGroups` | ≥ impact-level minimum |
 
+### As built: AI-AU-12-01/02
+
+`internal/awsclient/bedrock.go` (`bedrockLoggingCollector`), registered in `NativeCollectors()`;
+crosswalk entries in `internal/crosswalk`; fixtures under `internal/awsclient/testdata/bedrock/`
+and `.../cloudwatch/`. It runs only with `--native-checks`, which is **opt-in**: turned on by default,
+every member account without the assessor role would report `ERROR`, changing live output for
+every existing user. `--assume-role-name` and `--regions` ship with it.
+
+- A logging config counts only with a destination (CloudWatch log group or S3 bucket). The
+  `textDataDeliveryEnabled` flag alone isn't enough.
+- 02 fails with 01 when logging is off: with no logging, no text is recorded either.
+- Results roll up into the same per-control rows as Security Hub (AU-12, AU-2, AU-3), which is
+  D6 option (a) by default until Phase 3 settles D6. `CheckResult.Detail` (used/unused, SCP,
+  destinations) isn't shown anywhere yet; the Phase 3 detail pane surfaces it.
+- Crosswalk: AI RMF MEASURE 2.4 / MANAGE 4.1 and OWASP LLM01/LLM10 (01), LLM01/LLM02 (02),
+  marked `cloudcomply-interpretation`. No published crosswalk covers these.
+- The Security Hub fetch keeps its 30s bound. The native scan has no overall bound; each call
+  has 60s (see 1b).
+- **Needs live verification:** GovCloud `entitlementAvailability` semantics; whether
+  agents / knowledge bases / batch inference appear in the two usage metrics (if not, they're
+  under-counted only in severity, never in pass/fail); and the account-level dimension set for
+  `AWS/BedrockMantle` (queried dimensionless, per AWS's guidance for `AWS/Bedrock`).
+
 ### Notes
 - Logging config is **account-level and per-region**. Must iterate enabled regions.
-- An account with no Bedrock usage should report `not_applicable`, not `fail`. There is no
-  cheap API for "absence of invocation activity"; the detection method is an
-  [open decision](#open-decisions).
+- ~~An account with no Bedrock usage should report `not_applicable`.~~ Superseded by
+  [D4](#decided): unused-but-usable Bedrock without logging **fails**; only demonstrably
+  unavailable Bedrock (SCP-denied, no regional endpoint, GovCloud with no model access) is
+  `NOT_APPLICABLE`.
 - AI-AU-12-03 and AI-AU-12-04 depend on the IL-conditional pass model (see
   [Framework mapping model](#framework-mapping-model)). AI-AU-12-04 also needs a cited source for
   per-IL retention minimums — none exists in the repo yet. If either blocks, ship 01/02 first.
-- Required IAM: `bedrock:GetModelInvocationLoggingConfiguration`, `s3:GetBucketEncryption`,
-  `s3:GetBucketLifecycleConfiguration`, `logs:DescribeLogGroups` (+
-  `cloudwatch:GetMetricStatistics` if the metric-based N/A detection is chosen).
+- Required IAM: `bedrock:GetModelInvocationLoggingConfiguration`,
+  `bedrock:ListFoundationModels`, `bedrock:GetFoundationModelAvailability` (GovCloud),
+  `cloudwatch:GetMetricData` (01/02, shipped); `s3:GetBucketEncryption`,
+  `s3:GetBucketLifecycleConfiguration`, `logs:DescribeLogGroups` (03/04).
 
 ### Mapping
 - **800-53:** AU-12, AU-2, AU-9 (log protection), AU-11 (retention)
@@ -314,8 +339,8 @@ passes tests and produces correct output against a real account.
 |---|---|---|---|
 | 0 | Reconnaissance report | 1 session | ✅ done |
 | 1a | Result + mapping model (statuses, crosswalk, scoring, SH adapter) | 1–2 sessions | ✅ merged (#16) |
-| 1b | Execution layer (account/region fan-out, timeouts, partial results, test pattern) | ~1 weekend | ✅ implemented (in review) |
-| 2 | AU-12 checks (first native check) + tests | 1 session for 01/02; 03/04 after their decisions | Bedrock N/A detection; retention source |
+| 1b | Execution layer (account/region fan-out, timeouts, partial results, test pattern) | ~1 weekend | ✅ merged (#25) |
+| 2 | AU-12 checks (first native check) + tests | 1 session for 01/02; 03/04 after their decisions | 01/02 implemented (in review); 04: D5 |
 | 3 | TUI rendering for AI workload results + finding detail pane | 1–2 sessions | TUI placement decision |
 | 4 | SC-7 checks + tests (after Security Hub overlap review) | 1 weekend | — |
 | 5 | AC-6 checks (defer AI-AC-6-06 if it bogs down) + tests | 2 weekends | — |
@@ -355,7 +380,7 @@ access-denied case.
 ## Open decisions
 
 Owner decisions surfaced by Phase 0. Options are listed with the recon's recommendation where it
-made one. Record each choice under [Decided](#decided) when made. **D1–D3 are decided; D4–D6 are
+made one. Record each choice under [Decided](#decided) when made. **D1–D4 are decided; D5–D6 are
 still open.**
 
 | # | Decision | Options | Recon recommendation | Blocks |
@@ -363,6 +388,9 @@ still open.**
 | D1 | **IL-conditional pass criteria** | (a) evaluate against a target IL chosen at run time; (b) emit one result per IL threshold | — | 1a, AI-AU-12-03/04 |
 | D2 | **Assessor role** in member accounts | (a) dedicated read-only role deployed via StackSets; (b) reuse `OrganizationAccountAccessRole` | (a) — (b) is admin-equivalent and undercuts the least-privilege credibility goal | 1b |
 | D3 | **Region scope** | (a) discover enabled regions (`account:ListRegions` / `ec2:DescribeRegions`); (b) `--regions` flag; (c) both, flag overrides | — | 1b |
+| D4 | **Bedrock not-applicable detection** | (a) CloudWatch `AWS/Bedrock` `Invocations` metric per region; (b) explicit scope flag | (a), with (b) as override | AI-AU-12-01/02 |
+| D5 | **Retention minimum source** for AI-AU-12-04 | Name the authority (e.g. DoD SRG, OMB M-21-31) | — | AI-AU-12-04 |
+| D6 | **TUI placement** of AI workload results | (a) merge into existing per-control rows; (b) new "source" filter tab (`ALL / Security Hub / AI Workloads`); (c) new view | (b) — keeps AI findings visible, matches existing filter UX | 3 |
 
 ### Decided
 
@@ -383,9 +411,28 @@ still open.**
 - **D3 → (c) both** *(2026-11-16)*. Default: discover enabled regions per account. `--regions`
   overrides with one region or a comma-separated list (e.g. `--regions us-east-1` or
   `--regions us-east-1,us-gov-west-1`).
-| D4 | **Bedrock not-applicable detection** | (a) CloudWatch `AWS/Bedrock` `Invocations` metric per region (needs `cloudwatch:GetMetricStatistics`); (b) explicit scope flag | (a), with (b) as override | AI-AU-12-01/02 |
-| D5 | **Retention minimum source** for AI-AU-12-04 | Name the authority (e.g. DoD SRG, OMB M-21-31) | — | AI-AU-12-04 |
-| D6 | **TUI placement** of AI workload results | (a) merge into existing per-control rows; (b) new "source" filter tab (`ALL / Security Hub / AI Workloads`); (c) new view | (b) — keeps AI findings visible, matches existing filter UX | 3 |
+- **D4 → usable means in scope; unused-but-usable FAILS** *(2026-11-23)*. Owner's reasoning: a
+  service that isn't disabled can be used without authorization or exploited, so missing
+  invocation logging is a gap whether or not Bedrock has been used. Research (Bedrock user
+  guide, IAM access-denied guide, retrieved 2026-11-21) found:
+  - **Commercial regions have no "not enabled" state.** Access to most models is on by default
+    and activates on first use, so there's nothing to read.
+  - **GovCloud does:** model access is granted manually per model. `GetFoundationModelAvailability`
+    `entitlementAvailability` reflects it; `authorizationStatus` is not used because it describes
+    the *caller*, and the read-only assessor is never authorized to invoke.
+  - **An SCP that denies Bedrock is visible** when it also denies the read call: AWS names it in
+    the message ("with an explicit deny in a service control policy"). An SCP that denies only
+    `bedrock:InvokeModel*` is invisible from inside the account.
+  - **Usage needs two namespaces:** `bedrock-runtime` publishes `AWS/Bedrock` `Invocations`;
+    `bedrock-mantle` (OpenAI/Anthropic-compatible APIs) publishes `AWS/BedrockMantle`
+    `Inferences`. Reading only the first would call a mantle-only account idle.
+
+  Rule: logging configured → evaluate; not configured and used in the last **90 days** → `FAILED`
+  HIGH; not configured and unused but usable → `FAILED` MEDIUM (detail says unused); Bedrock calls
+  denied by SCP, no Bedrock endpoint in the region, or GovCloud with no model entitled →
+  `NOT_APPLICABLE`; a detection call failing → `ERROR` (or, for the usage metric only, `FAILED`
+  HIGH, since the missing logging is already established). Option (b)'s override flag was dropped:
+  with usage affecting only severity, there's nothing to override.
 
 ---
 

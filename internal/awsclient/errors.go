@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"regexp"
+	"strings"
 
 	"github.com/aws/smithy-go"
 
@@ -58,23 +59,44 @@ func ResultsForError(checkIDs []string, t Target, err error) []nist.CheckResult 
 }
 
 // ResultsForStatus builds one result per check with the given status,
-// filling controls and impact level from the crosswalk so the result rolls
-// up under the right NIST controls.
+// filling title, controls and impact level from the crosswalk so the result
+// rolls up under the right NIST controls.
 func ResultsForStatus(checkIDs []string, t Target, status nist.FindingStatus, detail string) []nist.CheckResult {
 	out := make([]nist.CheckResult, 0, len(checkIDs))
 	for _, id := range checkIDs {
-		m, _ := lookupMapping(id)
-		out = append(out, nist.CheckResult{
-			CheckID:        id,
-			Title:          id,
-			Controls:       m.NIST80053,
-			Status:         status,
-			Severity:       nist.SeverityMedium,
-			Account:        t.Account,
-			Region:         t.Region,
-			Detail:         detail,
-			MinImpactLevel: m.MinImpactLevel,
-		})
+		out = append(out, newResult(id, t, status, nist.SeverityMedium, detail))
 	}
 	return out
+}
+
+func newResult(id string, t Target, status nist.FindingStatus, sev nist.Severity, detail string) nist.CheckResult {
+	m, _ := lookupMapping(id)
+	title := m.Title
+	if title == "" {
+		title = id
+	}
+	return nist.CheckResult{
+		CheckID:        id,
+		Title:          title,
+		Controls:       m.NIST80053,
+		Status:         status,
+		Severity:       sev,
+		Account:        t.Account,
+		Region:         t.Region,
+		Detail:         detail,
+		MinImpactLevel: m.MinImpactLevel,
+	}
+}
+
+// deniedBySCP reports whether err is an access denial caused by an explicit
+// deny in a service control policy. AWS names the policy type in the denial
+// message ("... with an explicit deny in a service control policy"), which is
+// the only signal visible from inside a member account that an organization
+// has switched a service off.
+func deniedBySCP(err error) bool {
+	var apiErr smithy.APIError
+	if !errors.As(err, &apiErr) || !accessDeniedCodes[apiErr.ErrorCode()] {
+		return false
+	}
+	return strings.Contains(apiErr.ErrorMessage(), "explicit deny in a service control policy")
 }

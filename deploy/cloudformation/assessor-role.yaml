@@ -61,6 +61,18 @@ Resources:
                 Effect: Allow
                 Action: account:ListRegions
                 Resource: "*"
+              # AI-AU-12-01/02: Bedrock model invocation logging. The model
+              # listing and availability calls are only made in GovCloud,
+              # where model access is granted manually; GetMetricData reads
+              # Bedrock invocation counts to set finding severity.
+              - Sid: BedrockInvocationLoggingChecks
+                Effect: Allow
+                Action:
+                  - bedrock:GetModelInvocationLoggingConfiguration
+                  - bedrock:ListFoundationModels
+                  - bedrock:GetFoundationModelAvailability
+                  - cloudwatch:GetMetricData
+                Resource: "*"
 
 Outputs:
   RoleArn:

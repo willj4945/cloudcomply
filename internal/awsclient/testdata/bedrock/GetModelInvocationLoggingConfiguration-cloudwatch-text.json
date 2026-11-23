@@ -1,0 +1,1 @@
+{"LoggingConfig": {"CloudWatchConfig": {"LogGroupName": "/aws/bedrock/model-invocations", "RoleArn": "arn:aws:iam::222222222222:role/BedrockInvocationLogging"}, "TextDataDeliveryEnabled": true, "ImageDataDeliveryEnabled": false, "EmbeddingDataDeliveryEnabled": false}}

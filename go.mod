@@ -7,6 +7,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.33.18
 	github.com/aws/aws-sdk-go-v2/credentials v1.21.0
 	github.com/aws/aws-sdk-go-v2/service/account v1.42.11
+	github.com/aws/aws-sdk-go-v2/service/bedrock v1.75.0
+	github.com/aws/aws-sdk-go-v2/service/cloudwatch v1.76.0
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.63.0
 	github.com/aws/aws-sdk-go-v2/service/securityhub v1.87.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.52.0

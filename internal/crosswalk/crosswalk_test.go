@@ -17,6 +17,7 @@ func TestAllMappingsValid(t *testing.T) {
 
 func valid() Mapping {
 	return Mapping{
+		Title:          "Test check",
 		NIST80053:      []string{"AU-12", "SC-7(3)"},
 		MinImpactLevel: nist.IL4,
 		AIRMF:          []string{"MEASURE 2.7", "MANAGE 4"},
@@ -33,6 +34,7 @@ func TestValidate(t *testing.T) {
 	}{
 		{"valid", func(*Mapping) {}, ""},
 		{"published with citation", func(m *Mapping) { m.Source, m.Citation = SourcePublished, "NIST AI 100-1 crosswalk" }, ""},
+		{"no title", func(m *Mapping) { m.Title = "" }, "no title"},
 		{"no controls", func(m *Mapping) { m.NIST80053 = nil }, "no NIST 800-53 controls"},
 		{"bad control", func(m *Mapping) { m.NIST80053 = []string{"AU12"} }, `invalid NIST 800-53 control "AU12"`},
 		{"bad impact level", func(m *Mapping) { m.MinImpactLevel = "IL3" }, `invalid impact level "IL3"`},

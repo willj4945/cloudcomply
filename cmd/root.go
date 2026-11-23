@@ -7,24 +7,50 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/willj4945/cloudcomply/internal/awsclient"
 	"github.com/willj4945/cloudcomply/internal/tui"
 )
 
-// demoMode is a persistent flag shared by the TUI and `report nist` — see
-// cmd/fetch.go. Default is live AWS calls; --demo opts into the old
-// fake-data-only behavior.
-var demoMode bool
+// Persistent flags shared by the TUI and `report nist`; see cmd/fetch.go.
+var (
+	demoMode       bool
+	nativeChecks   bool
+	assumeRoleName string
+	regionsFlag    string
+)
+
+// liveFetchOptions validates the shared flags once, before any AWS call, so
+// a typo in --regions fails fast instead of mid-scan.
+func liveFetchOptions() (fetchOptions, error) {
+	regions, err := awsclient.ParseRegions(regionsFlag)
+	if err != nil {
+		return fetchOptions{}, fmt.Errorf("--regions: %w", err)
+	}
+	return fetchOptions{
+		demo:         demoMode,
+		nativeChecks: nativeChecks,
+		scan:         awsclient.ScanOptions{RoleName: assumeRoleName, Regions: regions},
+	}, nil
+}
 
 var rootCmd = &cobra.Command{
 	Use:   "cloudcomply",
 	Short: "Assess AWS Organizations against NIST SP 800-53 / RMF controls",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return tui.Run(newFetcher(demoMode))
+		opts, err := liveFetchOptions()
+		if err != nil {
+			return err
+		}
+		return tui.Run(newFetcher(opts))
 	},
 }
 
 func init() {
-	rootCmd.PersistentFlags().BoolVar(&demoMode, "demo", false, "use built-in demo data instead of live AWS Security Hub calls")
+	f := rootCmd.PersistentFlags()
+	f.BoolVar(&demoMode, "demo", false, "use built-in demo data instead of live AWS Security Hub calls")
+	f.BoolVar(&nativeChecks, "native-checks", false, "also run cloudcomply's own AI workload checks in every account and region (needs the assessor role; see deploy/README.md)")
+	f.StringVar(&assumeRoleName, "assume-role-name", awsclient.DefaultAssessorRoleName, "role native checks assume in each member account")
+	f.StringVar(&regionsFlag, "regions", "", "comma-separated regions for native checks (default: each account's enabled regions)")
 }
 
 // Execute runs the CLI. version/commit/date come from ldflags set at build

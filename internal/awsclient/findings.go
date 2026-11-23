@@ -66,6 +66,17 @@ var severityMap = map[types.SeverityLabel]nist.Severity{
 // the NIST SP 800-53 standard and rolls them up into one nist.Finding per
 // control ID.
 func (c *Client) GetNISTFindings(ctx context.Context) ([]nist.Finding, error) {
+	results, err := c.GetNISTResults(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return nist.RollUp(results), nil
+}
+
+// GetNISTResults returns active Security Hub NIST findings as per-check
+// results, before rollup, so callers can combine them with native-check
+// results and roll everything up once.
+func (c *Client) GetNISTResults(ctx context.Context) ([]nist.CheckResult, error) {
 	filters := &types.AwsSecurityFindingFilters{
 		ComplianceAssociatedStandardsId: []types.StringFilter{{
 			Value:      aws.String(nistStandardFilter),
@@ -90,7 +101,7 @@ func (c *Client) GetNISTFindings(ctx context.Context) ([]nist.Finding, error) {
 			}
 		}
 	}
-	return nist.RollUp(results), nil
+	return results, nil
 }
 
 // toCheckResult adapts one ASFF finding into the shared result model. The

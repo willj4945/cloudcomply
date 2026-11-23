@@ -2,7 +2,7 @@
 
 cloudcomply's native checks (see [docs/ai-controls/plan.md](../docs/ai-controls/plan.md)) call AWS APIs directly in every account and region they assess. In each account other than the one it runs from, cloudcomply assumes a read-only role, **`cloudcomply-assessor`** by default. This directory contains that role.
 
-> **Status:** the cross-account scan engine exists, but no native check uses it yet. The role currently grants only `account:ListRegions`. Each check phase adds its own read-only actions to the template alongside the check. The `--assume-role-name` and `--regions` flags described below arrive with the first check (Phase 2). Until then, you can deploy the role now and verify it with step 4.
+> **Status:** native checks run when you pass `--native-checks`. The only checks so far are the Bedrock invocation-logging checks (AI-AU-12-01/02). Each new check adds its read-only actions to the template alongside the check, so **redeploy the StackSet when you upgrade cloudcomply**. Otherwise new checks report `ERROR: access denied` in member accounts.
 
 ## Why a dedicated role
 
@@ -78,14 +78,22 @@ These permissions go on the role or user you run cloudcomply as, in the assessor
       "Resource": "arn:aws:iam::*:role/cloudcomply-assessor"
     },
     {
-      "Sid": "DiscoverRegionsInOwnAccount",
+      "Sid": "NativeChecksInOwnAccount",
       "Effect": "Allow",
-      "Action": "account:ListRegions",
+      "Action": [
+        "account:ListRegions",
+        "bedrock:GetModelInvocationLoggingConfiguration",
+        "bedrock:ListFoundationModels",
+        "bedrock:GetFoundationModelAvailability",
+        "cloudwatch:GetMetricData"
+      ],
       "Resource": "*"
     }
   ]
 }
 ```
+
+The second statement exists because cloudcomply assesses the account it runs from with its own credentials, not the assessor role. It therefore needs the same read actions as the role.
 
 In GovCloud, use `arn:aws-us-gov:iam::*:role/cloudcomply-assessor`. cloudcomply builds role ARNs in the caller's own partition automatically.
 

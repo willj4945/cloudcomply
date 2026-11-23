@@ -20,7 +20,11 @@ var reportNistCmd = &cobra.Command{
 		if err := report.ValidateFormat(reportFormat); err != nil {
 			return err
 		}
-		findings, _, err := newFetcher(demoMode)(cmd.Context())
+		opts, err := liveFetchOptions()
+		if err != nil {
+			return err
+		}
+		findings, _, err := newFetcher(opts)(cmd.Context())
 		if err != nil {
 			return err
 		}

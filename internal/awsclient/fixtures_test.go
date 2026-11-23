@@ -29,9 +29,15 @@ func loadFixture(path string, out any) {
 // wrapped the way the SDK wraps it, e.g.
 // apiError("Bedrock", "ListGuardrails", "AccessDeniedException").
 func apiError(service, operation, code string) error {
+	return apiErrorMessage(service, operation, code, "simulated")
+}
+
+// apiErrorMessage is apiError with the service's message, for tests that
+// depend on it (e.g. AWS naming an SCP as the source of a denial).
+func apiErrorMessage(service, operation, code, message string) error {
 	return &smithy.OperationError{
 		ServiceID:     service,
 		OperationName: operation,
-		Err:           &smithy.GenericAPIError{Code: code, Message: "simulated"},
+		Err:           &smithy.GenericAPIError{Code: code, Message: message},
 	}
 }

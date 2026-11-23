@@ -12,7 +12,7 @@ cloudcomply is a security tool and is often run with privileged read access to a
 | **No telemetry** | The only network traffic is HTTPS to AWS service endpoints. No analytics, update checks or crash reporting. |
 | **Terminal-safe output** | Text from Security Hub findings (which third-party integrations can write via `BatchImportFindings`) has control characters stripped, so ANSI/OSC escape sequences can't run in your terminal. |
 | **Static binary** | Built with `CGO_ENABLED=0`, with no dynamic linking or runtime plugin loading. |
-| **Bounded runtime** | AWS calls stop after 30 seconds, so a stuck call can't hang a pipeline indefinitely. |
+| **Bounded runtime** | Security Hub calls stop after 30 seconds, and each native-check call after 60 seconds, so a stuck call can't hang a pipeline indefinitely. |
 
 ## Handling cloudcomply output
 

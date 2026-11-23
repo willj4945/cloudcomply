@@ -179,6 +179,25 @@ Organization (or use an org member account without org-level permissions).
       (`get caller identity:`) surfaces cleanly rather than masking the
       original `DescribeOrganization` failure
 
+### F2. Native checks (`--native-checks`)
+
+Needs the assessor role deployed ([deploy/README.md](deploy/README.md)). Use `--regions` to keep runs short.
+
+- [ ] Account cloudcomply runs from, region with invocation logging to CloudWatch **and** text
+      delivery on: AU-12 / AU-2 / AU-3 rows show no new failures from AI-AU-12-01/02
+- [ ] Same region with text delivery turned off: AU-3 (and AU-12) FAIL; AU-2 still passes
+- [ ] Region with no invocation logging and no Bedrock use: AU-12 FAILs at MEDIUM (D4:
+      unused-but-usable still fails); after one `InvokeModel` call, a re-run FAILs at HIGH
+- [ ] Member account without the assessor role: its AU-12/AU-2/AU-3 contributions are ERROR
+      and every other account still reports — the scan must not abort
+- [ ] Assessor role without `bedrock:GetModelInvocationLoggingConfiguration`: ERROR naming
+      `Bedrock:GetModelInvocationLoggingConfiguration`
+- [ ] Account with an SCP denying `bedrock:*`: NOT_APPLICABLE, not ERROR
+- [ ] GovCloud (`--regions us-gov-west-1`) with no model access enabled on the Model access
+      page: NOT_APPLICABLE; enable one model and re-run: FAILED. This verifies the
+      `entitlementAvailability` assumption recorded in `docs/ai-controls/plan.md`
+- [ ] `--regions narnia` fails immediately with `--regions: invalid region "narnia"`
+
 ### G. Known rough edges (not bugs to chase, just don't be surprised)
 
 - `MinImpactLevel` is hardcoded to `IL2` for **every** live finding

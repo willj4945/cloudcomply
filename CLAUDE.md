@@ -44,6 +44,10 @@ Current views:
 - `viewDashboard` — org summary + compliance score + main menu
 - `viewFindings` — NIST 800-53 findings table with control family and DoD SRG Impact Level filter tabs
 
+### Native checks
+
+`--native-checks` (opt-in) runs cloudcomply's own checks via `awsclient.Scan` across every account × region. A check is a `Collector` in `internal/awsclient` registered in `NativeCollectors()`, with one crosswalk entry per check ID in `internal/crosswalk`. Collectors turn AWS errors into `ERROR`/`NOT_APPLICABLE` results via `ResultsForError`, never into `PASSED`. Tests use recorded, scrubbed fixtures under `internal/awsclient/testdata/` and must never call AWS.
+
 ### Data model
 
 `Finding` is the per-control row every view and `report nist` renders. Sources produce `nist.CheckResult`s (one per check × resource/account/region, possibly mapped to several controls) and `nist.RollUp` aggregates them into `Finding`s; scoring excludes `NOT_APPLICABLE` and counts `ERROR` against the score. Framework mappings for native checks live in `internal/crosswalk`. `Finding`'s fields mirror real AWS Security Hub NIST findings intentionally — switching from fake to live data means replacing `demoFindings()` only, nothing else.
@@ -133,6 +137,9 @@ organizations:DescribeOrganization
 sts:GetCallerIdentity
 sts:AssumeRole       (cross-account native checks: on role/cloudcomply-assessor)
 account:ListRegions  (native checks: enabled-region discovery in the caller's own account)
+bedrock:GetModelInvocationLoggingConfiguration, bedrock:ListFoundationModels,
+bedrock:GetFoundationModelAvailability, cloudwatch:GetMetricData
+                     (--native-checks, AI-AU-12-01/02, in the caller's own account)
 ```
 
 Native checks assume the read-only `cloudcomply-assessor` role in every other account; its template, StackSet deployment and the caller policy are in [deploy/README.md](deploy/README.md). Any check that calls a new AWS action must add that action to `deploy/cloudformation/assessor-role.yaml` in the same change.

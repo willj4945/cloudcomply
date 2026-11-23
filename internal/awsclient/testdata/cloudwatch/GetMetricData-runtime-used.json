@@ -1,0 +1,4 @@
+{"MetricDataResults": [
+  {"Id": "runtime", "Label": "Invocations", "StatusCode": "Complete", "Timestamps": ["2026-11-20T00:00:00Z", "2026-11-12T00:00:00Z"], "Values": [30, 12]},
+  {"Id": "mantle", "Label": "Inferences", "StatusCode": "Complete", "Timestamps": [], "Values": []}
+]}

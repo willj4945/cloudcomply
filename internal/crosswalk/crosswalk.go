@@ -30,6 +30,7 @@ const (
 
 // Mapping is the full framework crosswalk for one check.
 type Mapping struct {
+	Title          string           // short check title, shown as the result title
 	NIST80053      []string         // e.g. "AU-12", "SC-7(3)"
 	MinImpactLevel nist.ImpactLevel // lowest DoD CC SRG IL requiring the check
 	AIRMF          []string         // e.g. "MEASURE 2.7", "MANAGE 4.1"
@@ -39,9 +40,35 @@ type Mapping struct {
 }
 
 // mappings is keyed by check ID (e.g. "AI-AU-12-01"). Entries are added
-// alongside the checks that use them, starting in Phase 2 of
-// docs/ai-controls/plan.md.
-var mappings = map[string]Mapping{}
+// alongside the checks that use them (docs/ai-controls/plan.md).
+//
+// AI RMF and OWASP mappings below are cloudcomply's interpretation: no
+// published crosswalk maps Bedrock invocation logging to either framework.
+// AI RMF IDs are NIST AI 100-1 subcategories; OWASP IDs are the 2025 Top 10
+// for LLM Applications.
+var mappings = map[string]Mapping{
+	// Invocation logging is the detection prerequisite for LLM incident
+	// response: a prompt injection or runaway usage that was never logged
+	// can't be investigated.
+	"AI-AU-12-01": {
+		Title:          "Bedrock model invocation logging enabled",
+		NIST80053:      []string{"AU-12", "AU-2"},
+		MinImpactLevel: nist.IL2,
+		AIRMF:          []string{"MEASURE 2.4", "MANAGE 4.1"},
+		OWASPLLM:       []string{"LLM01", "LLM10"},
+		Source:         SourceInterpretation,
+	},
+	// Without text delivery the logs record that a call happened but not the
+	// prompt or response, which is what an investigation needs.
+	"AI-AU-12-02": {
+		Title:          "Bedrock invocation logs capture prompt and response text",
+		NIST80053:      []string{"AU-12", "AU-3"},
+		MinImpactLevel: nist.IL2,
+		AIRMF:          []string{"MEASURE 2.4"},
+		OWASPLLM:       []string{"LLM01", "LLM02"},
+		Source:         SourceInterpretation,
+	},
+}
 
 // Lookup returns the mapping for a check ID.
 func Lookup(checkID string) (Mapping, bool) {
@@ -58,6 +85,9 @@ var (
 // Validate checks a mapping's identifiers and provenance.
 func (m Mapping) Validate() error {
 	var errs []error
+	if m.Title == "" {
+		errs = append(errs, errors.New("no title"))
+	}
 	if len(m.NIST80053) == 0 {
 		errs = append(errs, errors.New("no NIST 800-53 controls"))
 	}

@@ -1,0 +1,1 @@
+{"LoggingConfig": {"S3Config": {"BucketName": "example-bedrock-invocation-logs", "KeyPrefix": "invocations/"}, "TextDataDeliveryEnabled": false, "ImageDataDeliveryEnabled": true, "EmbeddingDataDeliveryEnabled": false}}
